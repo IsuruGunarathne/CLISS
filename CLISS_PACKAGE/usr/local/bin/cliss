@@ -1,0 +1,20 @@
+#!/bin/bash
+
+BASE="/usr/share/cliss"
+
+options=("Matrix" "LogStream" "LoadingBar" "SystemMonitor" "ASCIIWave" "Progress" "Quit")
+echo "Welcome to CLISS - Command Line Interface Screen Savers"
+echo "--------------------------------------------------------"
+select opt in "${options[@]}"
+do
+    case $opt in
+        Matrix) exec "$BASE/matrix" ;;
+        LogStream) exec "$BASE/logstream" ;;
+        LoadingBar) exec "$BASE/loadingbar" ;;
+        SystemMonitor) exec "$BASE/systemmonitor" ;;
+        ASCIIWave) exec "$BASE/asciiwave" ;;
+        Progress) exec "$BASE/progress" ;;
+        Quit) exit ;;
+        *) echo "Invalid option. Please choose again." ;;
+    esac
+done
