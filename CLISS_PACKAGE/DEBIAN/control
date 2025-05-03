@@ -1,0 +1,9 @@
+Package: cliss
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: bash
+Maintainer: Isuru <isuru2nothing@gmail.com>
+Description: CLISS - Command Line Interface Screen Savers
+ A fun collection of terminal screensavers with animations and fake system activity.
