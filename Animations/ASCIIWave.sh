@@ -7,6 +7,6 @@ while true; do
         POS=$(( ( (i + PHASE) % 20 ) ))
         printf "%*s\n" "$POS" "~"
     done
-    sleep 0.1
+    sleep 0.02
     clear
 done
