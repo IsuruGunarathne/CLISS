@@ -117,12 +117,3 @@ package.sh
 clean_install.sh
 README.md
 ```
-
----
-
-## 📬 Maintainer
-
-Created by **Your Name**  
-<you@example.com>
-
-Enjoy your command-line screensavers!
