@@ -4,6 +4,6 @@ Section: utils
 Priority: optional
 Architecture: all
 Depends: bash
-Maintainer: Isuru <isuru2nothing@gmail.com>
+Maintainer: Your Name <you@example.com>
 Description: CLISS - Command Line Interface Screen Savers
- A fun collection of terminal screensavers with animations and fake system activity.
+ A fun collection of 6 terminal screensavers with animations and fake system activity.
