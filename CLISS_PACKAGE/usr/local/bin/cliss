@@ -4,12 +4,13 @@ BASE="/usr/share/cliss"
 echo "Welcome to CLISS - Command Line Interface Screen Savers"
 echo "--------------------------------------------------------"
 
-options=(ASCIIWave LoadingBar LogStream Matrix Progress SystemMonitor "Quit")
+options=(ASCIIWave DualWaves LoadingBar LogStream Matrix Progress SystemMonitor "Quit")
 
 select opt in "${options[@]}"
 do
     case $opt in
         ASCIIWave) exec "$BASE/ASCIIWave" ;;
+        DualWaves) exec "$BASE/DualWaves" ;;
         LoadingBar) exec "$BASE/LoadingBar" ;;
         LogStream) exec "$BASE/LogStream" ;;
         Matrix) exec "$BASE/Matrix" ;;

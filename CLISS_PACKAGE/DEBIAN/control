@@ -6,4 +6,4 @@ Architecture: all
 Depends: bash
 Maintainer: Your Name <you@example.com>
 Description: CLISS - Command Line Interface Screen Savers
- A fun collection of 6 terminal screensavers with animations and fake system activity.
+ A fun collection of 7 terminal screensavers with animations and fake system activity.
