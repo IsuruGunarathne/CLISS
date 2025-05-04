@@ -6,7 +6,7 @@ cols=$(tput cols)
 rows=$(tput lines)
 amplitude=$((rows / 4))
 frequency=0.1
-speed=0.02
+speed=0 # Adjust speed as needed, 0.01 is a good start, 0 means no speed (static wave)
 
 while true; do
     clear
@@ -18,7 +18,8 @@ while true; do
         row=$(( (rows / 2) + y ))
         tput cup "$row" "$x"
         printf "~"
+        sleep 0.01
     done
     t=$(awk -v t="$t" -v s="$speed" 'BEGIN { print t + s }')
-    sleep 0.1
+    # sleep 0.001
 done
