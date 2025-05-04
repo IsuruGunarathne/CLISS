@@ -3,19 +3,6 @@
 
 CLISS is a collection of fun terminal screensavers for Linux. It includes fake system monitors, matrix animations, log streams, and more — all launched from a single `cliss` command.
 
-## 📦 Package Contents
-
-- `cliss` - Main launcher script (the only globally accessible command)
-- Internal Screensavers (only used by `cliss`):
-  - `matrix`
-  - `logstream`
-  - `loadingbar`
-  - `systemmonitor`
-  - `asciiwave`
-  - `progress`
-
----
-
 ## 🚀 Installation
 
 ### 🛠 Build and Install with One Command
@@ -92,12 +79,9 @@ Should return nothing.
 
 ```
 Animations/
-  ASCIIWave.sh
-  LoadingBar.sh
-  LogStream.sh
-  Matrix.sh
-  Progress.sh
-  SystemMonitor.sh
+  matrix
+  logstream
+  ...
 
 CLISS_PACKAGE/
   DEBIAN/
