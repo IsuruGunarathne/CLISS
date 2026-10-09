@@ -26,6 +26,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,3 +93,45 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "cliss ${TAG#v}"
           git push
+
+  # Publish the new .deb as a signed apt repository on GitHub Pages
+  # (https://isurugunarathne.github.io/CLISS), so `apt upgrade` finds it.
+  apt-repo:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the signed apt repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          command -v apt-ftparchive >/dev/null || sudo apt-get install -y apt-utils
+          gh release download "$TAG" --pattern cliss.deb --dir /tmp
+          printf '%s\n' "$SIGNING_KEY" | gpg --batch --import
+          ./apt_repo.sh /tmp/cliss.deb site
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>CLISS apt repository</title>
+          <p>This is the apt repository for <a href="https://github.com/IsuruGunarathne/CLISS">CLISS</a>.
+          See its README for how to add it.</p>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
