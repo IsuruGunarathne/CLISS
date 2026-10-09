@@ -99,6 +99,7 @@ Or run `./clean_install.sh` to build and install in one step.
 ```bash
 cliss                 # pick from the menu
 cliss fire            # run one directly (names are case-insensitive)
+cliss sm              # short names work too: initials (SystemMonitor) or a unique start (syn, aq)
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss lock matrix     # lock the screen when it ends (see Lock mode below)

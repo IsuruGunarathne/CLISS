@@ -2,7 +2,7 @@
 # CLISS - Command Line Interface Screen Savers
 #
 #   cliss                 pick a screensaver from the menu
-#   cliss <name>          run one directly (case-insensitive, e.g. cliss fire)
+#   cliss <name>          run one directly (e.g. cliss fire, cliss syn, cliss sm)
 #   cliss random          run a random one
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss lock [...]      lock the screen when it ends (default: shuffle)
@@ -71,16 +71,54 @@ lower() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
-find_index() {
-    local want
+# indexes of the screensavers whose name starts with $1
+starting_with() {
+    local want i
     want="$(lower "$1")"
+    for i in "${!NAMES[@]}"; do
+        [[ "$(lower "${NAMES[$i]}")" == "$want"* ]] && echo "$i"
+    done
+}
+
+# Index of the screensaver $1 names, ignoring case: the full name, the
+# initials of a multi-word name (sm = SystemMonitor), or the start of
+# exactly one name (syn = Synthwave)
+find_index() {
+    local want initials i matches
+    want="$(lower "$1")"
+    [[ -n "$want" ]] || return 1
     for i in "${!NAMES[@]}"; do
         if [[ "$(lower "${NAMES[$i]}")" == "$want" ]]; then
             echo "$i"
             return 0
         fi
     done
+    for i in "${!NAMES[@]}"; do
+        initials="$(printf '%s' "${NAMES[$i]}" | tr -cd '[:upper:]')"
+        if [[ ${#initials} -gt 1 && "$(lower "$initials")" == "$want" ]]; then
+            echo "$i"
+            return 0
+        fi
+    done
+    matches="$(starting_with "$1")"
+    if [[ -n "$matches" && "$matches" != *$'\n'* ]]; then
+        echo "$matches"
+        return 0
+    fi
     return 1
+}
+
+# tell the user why find_index found nothing for $1
+name_error() {
+    local i options=""
+    [[ -n "$1" ]] && for i in $(starting_with "$1"); do
+        options="$options ${NAMES[$i]}"
+    done
+    if [[ -n "$options" ]]; then
+        echo "cliss: '$1' could be:$options" >&2
+    else
+        echo "cliss: unknown screensaver '$1' (try: cliss list)" >&2
+    fi
 }
 
 shuffle() {
@@ -164,7 +202,7 @@ if [[ $# -gt 0 ]]; then
                 random|shuffle) ;;
                 *)
                     if ! find_index "$1" >/dev/null; then
-                        echo "cliss: unknown screensaver '$1' (try: cliss list)" >&2
+                        name_error "$1"
                         exit 1
                     fi ;;
             esac
@@ -179,7 +217,7 @@ if [[ $# -gt 0 ]]; then
                 launch "$i"
                 exit
             fi
-            echo "cliss: unknown screensaver '$1' (try: cliss list)" >&2
+            name_error "$1"
             exit 1 ;;
     esac
 fi
