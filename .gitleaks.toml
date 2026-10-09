@@ -1,0 +1,4 @@
+# gitleaks config. Uses the upstream default ruleset; add [[rules]] or an
+# [allowlist] here if this repo ever needs custom secret shapes or exceptions.
+[extend]
+useDefault = true

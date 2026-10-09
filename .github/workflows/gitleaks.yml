@@ -1,0 +1,57 @@
+name: gitleaks
+# Secret scan of the full git history on every push and pull request.
+#
+# We invoke a pinned gitleaks binary directly instead of gitleaks-action.
+# The action derives a diff range `<firstPushedCommit>^..<last>`; on a push
+# that includes the repo root commit that expands to `<root>^` which does not
+# resolve, and gitleaks aborts (exit 1) before scanning anything. Scanning the
+# full history with no range is both more thorough and immune to that bug.
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history so `gitleaks detect` sees every commit
+
+      - name: Install pinned gitleaks (checksum-verified)
+        env:
+          GITLEAKS_VERSION: "8.24.3"
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -O "${base}/${tarball}"
+          curl -fsSL -O "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          # Verify against the project-published checksums (fetched over TLS)
+          # rather than a hash hardcoded here that could silently rot.
+          grep " ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "${tarball}" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan full git history for secrets
+        run: |
+          set -euo pipefail
+          # No --log-opts / no range: scans the entire history. --exit-code 1
+          # so any finding fails the job; --redact keeps secrets out of logs.
+          gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --redact \
+            --no-banner \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path gitleaks-results.sarif
+
+      - name: Upload SARIF report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results.sarif
+          path: gitleaks-results.sarif
+          if-no-files-found: ignore
