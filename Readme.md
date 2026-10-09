@@ -37,14 +37,27 @@ A live dashboard of your own machine: per-core CPU with a usage history, memory 
 
 ### Debian / Ubuntu (recommended)
 
-Download the latest `.deb` from [Releases](https://github.com/IsuruGunarathne/CLISS/releases/latest) and install it:
+Add the CLISS apt repository, then install:
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://isurugunarathne.github.io/CLISS/cliss.gpg | sudo tee /etc/apt/keyrings/cliss.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/cliss.gpg] https://isurugunarathne.github.io/CLISS ./" | sudo tee /etc/apt/sources.list.d/cliss.list
+sudo apt update && sudo apt install cliss
+```
+
+New versions then arrive with your normal `sudo apt update && sudo apt upgrade`. `apt` installs `python3` automatically if it's missing.
+
+The repository is signed with the key `5B9E 37C7 32BA 43CC C75B C6B5 3294 16BC D73F 6270`.
+
+**Or install a single `.deb`** from [Releases](https://github.com/IsuruGunarathne/CLISS/releases/latest), without adding the repository (you won't get updates):
 
 ```bash
 curl -LO https://github.com/IsuruGunarathne/CLISS/releases/latest/download/cliss.deb
 sudo apt install ./cliss.deb
 ```
 
-`apt` installs `python3` automatically if it's missing. To install a specific version, replace `latest/download` with `download/<tag>`, for example `download/v1/cliss.deb`.
+To install a specific version, replace `latest/download` with `download/<tag>`, for example `download/v1/cliss.deb`.
 
 ### macOS
 
@@ -142,6 +155,8 @@ sudo apt remove cliss        # Debian / Ubuntu
 brew uninstall cliss         # Homebrew
 ```
 
+To also remove the apt repository: `sudo rm /etc/apt/sources.list.d/cliss.list /etc/apt/keyrings/cliss.gpg`.
+
 If you installed from source, delete the folder and the symlink (`sudo rm /usr/local/bin/cliss`).
 
 ---
@@ -201,6 +216,7 @@ docs/screenshots/                      images used in this README
 .github/workflows/release.yml          automatic releases on merge
 cliss                                  the launcher
 package.sh                             builds CLISS_PACKAGE.deb
+apt_repo.sh                            builds the signed apt repository
 clean_install.sh                       build + install in one step
 ```
 
