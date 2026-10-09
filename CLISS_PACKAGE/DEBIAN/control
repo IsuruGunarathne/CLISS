@@ -1,9 +1,10 @@
 Package: cliss
-Version: 1.0
+Version: 2.0
 Section: utils
 Priority: optional
 Architecture: all
-Depends: bash
-Maintainer: Your Name <you@example.com>
+Depends: bash, python3 (>= 3.6), coreutils
+Maintainer: Isuru Gunarathne <isuru623@gmail.com>
 Description: CLISS - Command Line Interface Screen Savers
- A fun collection of 7 terminal screensavers with animations and fake system activity.
+ A collection of 18 animated terminal screensavers: matrix rain, fire,
+ plasma, starfield, fireworks, an aquarium, pipes and more.

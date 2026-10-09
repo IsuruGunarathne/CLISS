@@ -1,4 +1,5 @@
 #!/bin/bash
+# cliss: Fake CPU and memory readings
 clear
 while true; do
     CPU=$(shuf -i 10-95 -n 1)

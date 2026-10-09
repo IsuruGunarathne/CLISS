@@ -1,4 +1,5 @@
 #!/bin/bash
+# cliss: Two mirrored sine waves
 
 clear
 t=0

@@ -1,4 +1,5 @@
 #!/bin/bash
+# cliss: A looping progress bar
 clear
 while true; do
     for i in {1..50}; do
