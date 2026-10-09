@@ -6,6 +6,7 @@
 #   cliss random          run a random one
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss list            list what is installed
+#   cliss --version       show the installed version
 
 BASE="${CLISS_HOME:-/usr/share/cliss}"
 # Running from a git checkout? Use the Animations folder next to this script.
@@ -14,10 +15,17 @@ if [[ -z "$CLISS_HOME" && -d "$SELF_DIR/Animations" ]]; then
     BASE="$SELF_DIR/Animations"
 fi
 
+# package.sh writes VERSION next to the screensavers; a checkout asks git
+if [[ -f "$BASE/VERSION" ]]; then
+    VERSION="$(<"$BASE/VERSION")"
+else
+    VERSION="$(git -C "$SELF_DIR" describe --tags 2>/dev/null || echo dev)"
+fi
+
 NAMES=()
 FILES=()
 for f in "$BASE"/*; do
-    [[ -f "$f" ]] || continue
+    [[ -f "$f" && "$(basename "$f")" != VERSION ]] || continue
     name="$(basename "$f")"
     name="${name%.*}"
     NAMES+=("$name")
@@ -93,7 +101,7 @@ banner() {
     for i in "${!lines[@]}"; do
         printf '\e[38;5;%sm%s\e[0m\n' "${colors[$i]}" "${lines[$i]}"
     done
-    printf '\e[2m  Command Line Interface Screen Savers\e[0m\n\n'
+    printf '\e[2m  Command Line Interface Screen Savers · %s\e[0m\n\n' "$VERSION"
 }
 
 menu() {
@@ -112,7 +120,10 @@ menu() {
 if [[ $# -gt 0 ]]; then
     case "${1,,}" in
         -h|--help|help)
-            sed -n '2,8s/^# \{0,1\}//p' "$0"
+            sed -n '2,9s/^# \{0,1\}//p' "$0"
+            exit 0 ;;
+        -v|--version|version)
+            echo "cliss $VERSION"
             exit 0 ;;
         list|ls)
             for i in "${!NAMES[@]}"; do

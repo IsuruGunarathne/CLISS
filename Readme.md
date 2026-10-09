@@ -1,6 +1,7 @@
 # CLISS · Command Line Interface Screen Savers
 
 [![Latest release](https://img.shields.io/github/v/release/IsuruGunarathne/CLISS?sort=semver)](https://github.com/IsuruGunarathne/CLISS/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Animated screensavers for your terminal.** Twelve full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks and an aquarium, all launched from a single `cliss` command.
 
@@ -68,6 +69,7 @@ cliss fire            # run one directly (names are case-insensitive)
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss list            # list what's installed
+cliss --version       # show the installed version
 cliss --help
 ```
 
@@ -150,3 +152,9 @@ cliss                                  the launcher
 package.sh                             builds CLISS_PACKAGE.deb
 clean_install.sh                       build + install in one step
 ```
+
+---
+
+## 📄 License
+
+CLISS is released under the [MIT License](LICENSE).

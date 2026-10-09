@@ -34,9 +34,15 @@ echo "🧰 Copying the shared rendering engine"
 mkdir -p CLISS_PACKAGE/usr/share/cliss/lib
 cp Animations/lib/*.py CLISS_PACKAGE/usr/share/cliss/lib/
 
+echo "v$VERSION" > CLISS_PACKAGE/usr/share/cliss/VERSION
+
 echo "🎛 Installing cliss launcher..."
 cp cliss CLISS_PACKAGE/usr/local/bin/cliss
 chmod +x CLISS_PACKAGE/usr/local/bin/cliss
+
+echo "📄 Adding license..."
+mkdir -p CLISS_PACKAGE/usr/share/doc/cliss
+cp LICENSE CLISS_PACKAGE/usr/share/doc/cliss/copyright
 
 echo "📝 Creating control file..."
 cat > CLISS_PACKAGE/DEBIAN/control <<EOF
