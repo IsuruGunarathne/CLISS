@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![gitleaks](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml)
 
-**Animated screensavers for your terminal.** Twelve full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks and an aquarium, all launched from a single `cliss` command.
+**Animated screensavers for your terminal.** Thirteen full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks, an aquarium and a live system monitor, all launched from a single `cliss` command.
 
 ![Synthwave screensaver](docs/screenshots/synthwave.gif)
 
@@ -24,6 +24,12 @@
 | ![Starfield](docs/screenshots/starfield.png) **Starfield**<br>Space flight with jumps to warp | ![Synthwave](docs/screenshots/synthwave.png) **Synthwave**<br>Outrun sunset and neon grid | ![Fireworks](docs/screenshots/fireworks.png) **Fireworks**<br>Bursts over a city skyline |
 | ![Aquarium](docs/screenshots/aquarium.png) **Aquarium**<br>Fish, a crab, kelp and bubbles | ![Pipes](docs/screenshots/pipes.png) **Pipes**<br>The classic, in four line styles | ![Life](docs/screenshots/life.png) **Life**<br>Game of Life, colored by age |
 | ![Donut](docs/screenshots/donut.png) **Donut**<br>The famous spinning donut, in color | ![Storm](docs/screenshots/storm.png) **Storm**<br>Rain, wind and forked lightning | ![Clock](docs/screenshots/clock.png) **Clock**<br>A giant clock bouncing like the DVD logo |
+
+### 📊 SystemMonitor
+
+A live dashboard of your own machine: per-core CPU with a usage history, memory and swap, network traffic, disk space and I/O, temperatures, battery, GPU load (AMD, and NVIDIA via `nvidia-smi` when it's installed) and the busiest processes. It reads everything from `/proc` and `/sys`, so it doesn't need `sudo`. Linux only.
+
+![SystemMonitor](docs/screenshots/systemmonitor.png)
 
 ---
 
