@@ -35,7 +35,7 @@ chmod +x CLISS_PACKAGE/usr/local/bin/cliss
 echo "📝 Creating control file..."
 cat > CLISS_PACKAGE/DEBIAN/control <<EOF
 Package: cliss
-Version: 2.0
+Version: 2.1
 Section: utils
 Priority: optional
 Architecture: all
