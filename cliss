@@ -106,7 +106,7 @@ menu() {
     printf '\n  \e[1;36m r\e[0m  \e[1m%-14s\e[0m \e[2m%s\e[0m\n' "Random" "Surprise me"
     printf '  \e[1;36m s\e[0m  \e[1m%-14s\e[0m \e[2m%s\e[0m\n' "Shuffle" "A new one every minute"
     printf '  \e[1;36m q\e[0m  \e[1m%-14s\e[0m\n\n' "Quit"
-    printf '  \e[2mWhile running: any key exits, space pauses (Ctrl+C for the classic shell ones).\e[0m\n\n'
+    printf '  \e[2mWhile running: any key exits, space pauses.\e[0m\n\n'
 }
 
 if [[ $# -gt 0 ]]; then
