@@ -2,6 +2,12 @@
 
 set -e
 
+# Package version: CLISS_VERSION if set, otherwise the latest git tag (v1.2 -> 1.2)
+VERSION="${CLISS_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || true)}"
+VERSION="${VERSION#v}"
+VERSION="${VERSION:-0.0}"
+[[ "$VERSION" == *.* ]] || VERSION="$VERSION.0"
+
 echo "🧹 Cleaning previous build..."
 rm -rf CLISS_PACKAGE/usr/local/bin/*
 rm -rf CLISS_PACKAGE/usr/share/cliss/*
@@ -35,7 +41,7 @@ chmod +x CLISS_PACKAGE/usr/local/bin/cliss
 echo "📝 Creating control file..."
 cat > CLISS_PACKAGE/DEBIAN/control <<EOF
 Package: cliss
-Version: 2.1
+Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: all
@@ -49,4 +55,4 @@ EOF
 echo "📦 Building .deb package..."
 dpkg-deb --build CLISS_PACKAGE
 
-echo "✅ Done: CLISS_PACKAGE.deb created"
+echo "✅ Done: CLISS_PACKAGE.deb (version $VERSION) created"

@@ -1,0 +1,57 @@
+name: Release
+
+# Every PR merged into main ships a new minor release: v1 -> v1.1 -> v1.2 ...
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+# never compute two version numbers at the same time
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: version
+        run: |
+          latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)
+          if [[ -z "$latest" ]]; then
+            next="v1"
+          else
+            major="${latest#v}"; major="${major%%.*}"
+            minor="${latest#v$major}"; minor="${minor#.}"
+            next="v$major.$(( ${minor:-0} + 1 ))"
+          fi
+          echo "Latest tag: ${latest:-none}, releasing $next"
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Build the .deb
+        env:
+          CLISS_VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          ./package.sh
+          cp CLISS_PACKAGE.deb cliss.deb
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          gh release create "$TAG" cliss.deb \
+            --target "$SHA" \
+            --title "CLISS $TAG" \
+            --generate-notes

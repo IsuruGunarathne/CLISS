@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# build output from package.sh
+CLISS_PACKAGE/
+CLISS_PACKAGE.deb

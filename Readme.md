@@ -1,74 +1,62 @@
+# CLISS · Command Line Interface Screen Savers
 
-# CLISS - Command Line Interface Screen Savers
+[![Latest release](https://img.shields.io/github/v/release/IsuruGunarathne/CLISS?sort=semver)](https://github.com/IsuruGunarathne/CLISS/releases/latest)
 
-CLISS is a collection of animated terminal screensavers for Linux: matrix rain, a roaring fire, demoscene plasma, a warp-speed starfield, fireworks over a city, an aquarium, the classic pipes, and more. All of them launch from a single `cliss` command.
+**Animated screensavers for your terminal.** Twelve full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks and an aquarium, all launched from a single `cliss` command.
 
-## 🎬 The Screensavers
+![Synthwave screensaver](docs/screenshots/synthwave.gif)
 
-| Name | What you get |
-|------|--------------|
-| **Matrix** | Digital rain with katakana, glowing heads and depth |
-| **Fire** | Doom-style fire with drifting embers |
-| **Plasma** | Full-color demoscene plasma that slowly moves between palettes |
-| **Starfield** | Fly through space, with the occasional jump to warp speed |
-| **Synthwave** | Outrun sunset: striped sun, neon mountains and an endless grid |
-| **Fireworks** | Spheres, rings, willows, palms and crackles bursting over a skyline |
-| **Aquarium** | Fish, a crab, swaying kelp, light rays and bubbles |
-| **Pipes** | The classic pipes screensaver in heavy, rounded, double or thin lines |
-| **Life** | Conway's Game of Life, colored by age, with glowing afterimages; reseeds itself when it settles |
-| **Donut** | The famous spinning ASCII donut, with color and lighting |
-| **Storm** | Gusting rain, splashes, rolling clouds and forked lightning |
-| **Clock** | A giant clock bouncing around like the DVD logo. Watch for corner hits! |
-
-While a screensaver is running, **any key exits** and **space pauses**.
-
-## 🚀 Installation
-
-### 🛠 Build and Install with One Command
-
-Use the provided script:
-
-```bash
-./clean_install.sh
-```
-
-This will:
-- Rebuild the `.deb` package from source
-- Install it using `dpkg`
-- Fix any missing dependencies automatically
-
-Requirements: `bash` and `python3` (standard library only; nothing to `pip install`).
+- 🎨 **24-bit color** with an automatic 256-color fallback
+- 🖥️ **Fits any terminal size** and adapts when you resize the window
+- ⌨️ **Any key exits** and **space pauses**. Your terminal is restored as it was.
+- 🔀 **Shuffle mode** switches to a new random screensaver at a set interval
+- 📦 **No extra dependencies**: just `bash` and `python3`
 
 ---
 
-## 🧪 Manual Build and Install (Alternative)
+## 🎬 Gallery
 
-### 1. Build the package
+| | | |
+|:---:|:---:|:---:|
+| ![Matrix](docs/screenshots/matrix.png) **Matrix**<br>Katakana digital rain with depth | ![Fire](docs/screenshots/fire.png) **Fire**<br>Doom-style fire with embers | ![Plasma](docs/screenshots/plasma.png) **Plasma**<br>Demoscene plasma with shifting palettes |
+| ![Starfield](docs/screenshots/starfield.png) **Starfield**<br>Space flight with jumps to warp | ![Synthwave](docs/screenshots/synthwave.png) **Synthwave**<br>Outrun sunset and neon grid | ![Fireworks](docs/screenshots/fireworks.png) **Fireworks**<br>Bursts over a city skyline |
+| ![Aquarium](docs/screenshots/aquarium.png) **Aquarium**<br>Fish, a crab, kelp and bubbles | ![Pipes](docs/screenshots/pipes.png) **Pipes**<br>The classic, in four line styles | ![Life](docs/screenshots/life.png) **Life**<br>Game of Life, colored by age |
+| ![Donut](docs/screenshots/donut.png) **Donut**<br>The famous spinning donut, in color | ![Storm](docs/screenshots/storm.png) **Storm**<br>Rain, wind and forked lightning | ![Clock](docs/screenshots/clock.png) **Clock**<br>A giant clock bouncing like the DVD logo |
 
-```bash
-chmod +x package.sh
-./package.sh
-```
+---
 
-### 2. Install the package
+## 🚀 Install
 
-```bash
-sudo dpkg -i CLISS_PACKAGE.deb
-```
+### Debian / Ubuntu (recommended)
 
-If there are missing dependencies:
-
-```bash
-sudo apt-get install -f
-```
-
-### Try it without installing
-
-The launcher works straight from a checkout:
+Download the latest `.deb` from [Releases](https://github.com/IsuruGunarathne/CLISS/releases/latest) and install it:
 
 ```bash
-./cliss
+curl -LO https://github.com/IsuruGunarathne/CLISS/releases/latest/download/cliss.deb
+sudo apt install ./cliss.deb
 ```
+
+`apt` installs `python3` automatically if it's missing. To install a specific version, replace `latest/download` with `download/<tag>`, for example `download/v1/cliss.deb`.
+
+### Any Linux distro (from source)
+
+```bash
+git clone https://github.com/IsuruGunarathne/CLISS.git
+cd CLISS
+./cliss                                        # run it straight from the folder
+sudo ln -s "$PWD/cliss" /usr/local/bin/cliss   # optional: put it on your PATH
+```
+
+You need `bash` and Python 3.6 or newer.
+
+### Build the .deb yourself
+
+```bash
+./package.sh                       # creates CLISS_PACKAGE.deb
+sudo apt install ./CLISS_PACKAGE.deb
+```
+
+Or run `./clean_install.sh` to build and install in one step.
 
 ---
 
@@ -80,11 +68,14 @@ cliss fire            # run one directly (names are case-insensitive)
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss list            # list what's installed
+cliss --help
 ```
+
+While a screensaver is running, **any key exits** and **space pauses**.
 
 ### Colors
 
-The new screensavers use 24-bit color when your terminal advertises it (`COLORTERM=truecolor`) and fall back to 256 colors otherwise. You can force a mode:
+CLISS uses 24-bit color when your terminal advertises it (`COLORTERM=truecolor`, which most modern terminals set) and 256 colors otherwise. You can force a mode:
 
 ```bash
 CLISS_COLOR=256 cliss plasma
@@ -93,29 +84,21 @@ CLISS_COLOR=truecolor cliss plasma
 
 ---
 
-## ❌ Uninstallation
-
-To remove CLISS:
+## ❌ Uninstall
 
 ```bash
-sudo dpkg -r cliss
+sudo apt remove cliss
 ```
 
-To verify it's gone:
-
-```bash
-which cliss
-```
-
-Should return nothing.
+If you installed from source, delete the folder and the symlink (`sudo rm /usr/local/bin/cliss`).
 
 ---
 
-## 🧩 Adding Your Own Screensaver
+## 🧩 Write Your Own Screensaver
 
-Drop a `.sh` or `.py` file into `Animations/`. The launcher picks it up automatically, and `package.sh` bundles it. Add a `# cliss: <description>` line near the top to give it a menu description.
+Drop a `.py` (or `.sh`) file into `Animations/`. The launcher picks it up automatically, and `package.sh` bundles it. Add a `# cliss: <description>` line near the top to give it a menu description.
 
-Python screensavers can use the small shared engine in `Animations/lib/clissfx.py`. It handles the alternate screen, keys, resizing, colors and flicker-free diffed output:
+Python screensavers can use the small shared engine in [`Animations/lib/clissfx.py`](Animations/lib/clissfx.py). It handles the alternate screen, keys, resizing, colors and flicker-free diffed output:
 
 ```python
 #!/usr/bin/env python3
@@ -145,20 +128,25 @@ Useful bits: `put(x, y, ch, fg, bg, bold)`, `text(...)`, and `blit_pixels(rows)`
 
 ---
 
+## 🤝 Contributing
+
+Pull requests are welcome, and new screensavers especially! Fork the repo, add your animation under `Animations/`, test it with `./cliss <name>`, and open a PR against `main`.
+
+## 📦 Releases
+
+Every pull request merged into `main` publishes a new release automatically: `v1`, `v1.1`, `v1.2`, and so on. Each release has a ready-to-install `cliss.deb`. See [`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+---
+
 ## 📁 Repository Structure
 
 ```
 Animations/
-  Matrix.py, Fire.py, Plasma.py, ...   <-- the screensavers
-  lib/clissfx.py                       <-- shared terminal rendering engine
-
-CLISS_PACKAGE/                         <-- generated by package.sh
-  DEBIAN/control
-  usr/local/bin/cliss
-  usr/share/cliss/<Name> and lib/
-
-cliss                 <-- launcher script
-package.sh
-clean_install.sh
-Readme.md
+  Matrix.py, Fire.py, Plasma.py, ...   the screensavers
+  lib/clissfx.py                       shared terminal rendering engine
+docs/screenshots/                      images used in this README
+.github/workflows/release.yml          automatic releases on merge
+cliss                                  the launcher
+package.sh                             builds CLISS_PACKAGE.deb
+clean_install.sh                       build + install in one step
 ```
