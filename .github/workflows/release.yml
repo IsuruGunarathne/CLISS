@@ -62,3 +62,32 @@ jobs:
             --target "$SHA" \
             --title "CLISS $TAG" \
             --generate-notes
+
+      # Point the Homebrew formula (github.com/IsuruGunarathne/homebrew-cliss)
+      # at the new release. The deploy key can push to that repo only.
+      - name: Update the Homebrew tap
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          sha="$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)"
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tap_key
+          chmod 600 ~/.ssh/tap_key
+          # GitHub's published host key (api.github.com/meta), not ssh-keyscan
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_key -o IdentitiesOnly=yes"
+
+          git clone --depth 1 git@github.com:IsuruGunarathne/homebrew-cliss.git tap
+          cd tap
+          sed -i -E \
+            -e "s|^  url \".*\"|  url \"$url\"|" \
+            -e "s|^  sha256 \".*\"|  sha256 \"$sha\"|" \
+            Formula/cliss.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "cliss ${TAG#v}"
+          git push

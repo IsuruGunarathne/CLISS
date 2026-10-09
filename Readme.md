@@ -48,6 +48,17 @@ sudo apt install ./cliss.deb
 
 ### macOS
 
+With [Homebrew](https://brew.sh):
+
+```bash
+brew install isurugunarathne/cliss/cliss
+cliss
+```
+
+Update with `brew upgrade cliss`. If Homebrew says your Command Line Tools are outdated, update them from Software Update in System Settings first.
+
+Without Homebrew, clone the repo and put the launcher on your `PATH`:
+
 ```bash
 git clone https://github.com/IsuruGunarathne/CLISS.git ~/.cliss
 sudo mkdir -p /usr/local/bin
@@ -55,11 +66,10 @@ sudo ln -sf ~/.cliss/cliss /usr/local/bin/cliss
 cliss
 ```
 
-If `~/.local/bin` is already on your `PATH`, you can skip `sudo` and link it there instead: `ln -sf ~/.cliss/cliss ~/.local/bin/cliss`.
+If `~/.local/bin` is already on your `PATH`, you can skip `sudo` and link it there instead: `ln -sf ~/.cliss/cliss ~/.local/bin/cliss`. Update with `git -C ~/.cliss pull`.
 
-- **Python:** macOS includes `python3` with the Xcode Command Line Tools. If `python3 --version` asks you to install them, accept, or run `xcode-select --install`.
+- **Python:** CLISS uses the `python3` that comes with the Xcode Command Line Tools. If `python3 --version` asks you to install them, accept, or run `xcode-select --install`.
 - **Colors:** Terminal.app, iTerm2, Warp, Ghostty, WezTerm and kitty all show full 24-bit color. If a terminal doesn't advertise it, CLISS uses 256 colors (see [Colors](#colors) to force a mode).
-- **Updating:** run `git -C ~/.cliss pull`.
 - **SystemMonitor** reads Linux's `/proc`, so on macOS it only shows a message. Every other screensaver works.
 
 ### Any Linux distro (from source)
@@ -127,7 +137,8 @@ It isn't a real lock screen. Apps can't draw over the system lock screen, so whi
 ## ❌ Uninstall
 
 ```bash
-sudo apt remove cliss
+sudo apt remove cliss        # Debian / Ubuntu
+brew uninstall cliss         # Homebrew
 ```
 
 If you installed from source, delete the folder and the symlink (`sudo rm /usr/local/bin/cliss`).
