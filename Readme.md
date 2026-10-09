@@ -12,7 +12,7 @@
 - 🖥️ **Fits any terminal size** and adapts when you resize the window
 - ⌨️ **Any key exits** and **space pauses**. Your terminal is restored as it was.
 - 🔀 **Shuffle mode** switches to a new random screensaver at a set interval
-- 📦 **No extra dependencies**: just `bash` and `python3`
+- 📦 **No extra dependencies**: just `bash` and `python3`, on Linux and macOS
 
 ---
 
@@ -45,6 +45,22 @@ sudo apt install ./cliss.deb
 ```
 
 `apt` installs `python3` automatically if it's missing. To install a specific version, replace `latest/download` with `download/<tag>`, for example `download/v1/cliss.deb`.
+
+### macOS
+
+```bash
+git clone https://github.com/IsuruGunarathne/CLISS.git ~/.cliss
+sudo mkdir -p /usr/local/bin
+sudo ln -sf ~/.cliss/cliss /usr/local/bin/cliss
+cliss
+```
+
+If `~/.local/bin` is already on your `PATH`, you can skip `sudo` and link it there instead: `ln -sf ~/.cliss/cliss ~/.local/bin/cliss`.
+
+- **Python:** macOS includes `python3` with the Xcode Command Line Tools. If `python3 --version` asks you to install them, accept, or run `xcode-select --install`.
+- **Colors:** Terminal.app, iTerm2, Warp, Ghostty, WezTerm and kitty all show full 24-bit color. If a terminal doesn't advertise it, CLISS uses 256 colors (see [Colors](#colors) to force a mode).
+- **Updating:** run `git -C ~/.cliss pull`.
+- **SystemMonitor** reads Linux's `/proc`, so on macOS it only shows a message. Every other screensaver works.
 
 ### Any Linux distro (from source)
 

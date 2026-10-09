@@ -8,9 +8,19 @@
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
 
+# This script sticks to bash 3.2 features, since that's what macOS ships.
+
 BASE="${CLISS_HOME:-/usr/share/cliss}"
+
+# Follow symlinks to find where this script really lives
+# (no `readlink -f`: older macOS doesn't have it).
+SELF="${BASH_SOURCE[0]}"
+while [[ -L "$SELF" ]]; do
+    target="$(readlink "$SELF")"
+    [[ "$target" == /* ]] && SELF="$target" || SELF="$(dirname "$SELF")/$target"
+done
+SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 # Running from a git checkout? Use the Animations folder next to this script.
-SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 if [[ -z "$CLISS_HOME" && -d "$SELF_DIR/Animations" ]]; then
     BASE="$SELF_DIR/Animations"
 fi
@@ -56,10 +66,15 @@ launch() {
     "${CMD[@]}"
 }
 
+lower() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 find_index() {
-    local want="${1,,}"
+    local want
+    want="$(lower "$1")"
     for i in "${!NAMES[@]}"; do
-        if [[ "${NAMES[$i],,}" == "$want" ]]; then
+        if [[ "$(lower "${NAMES[$i]}")" == "$want" ]]; then
             echo "$i"
             return 0
         fi
@@ -78,10 +93,15 @@ shuffle() {
         i=$((RANDOM % ${#NAMES[@]}))
         [[ ${#NAMES[@]} -gt 1 && $i -eq $last ]] && continue
         last=$i
-        # the Python screensavers exit with 3 when their time is up;
-        # for the shell ones `timeout` ends them (status 124)
+        # the Python screensavers exit with 3 when their time is up; anything
+        # else is ended by GNU `timeout` (status 124) where it's available
+        # (macOS doesn't ship it, and busybox's lacks --foreground)
         command_for "$i"
-        CLISS_DURATION="$secs" timeout --foreground "$((secs + 1))" "${CMD[@]}"
+        if [[ "${CMD[0]}" != python3 ]] && timeout --version 2>/dev/null | grep -q GNU; then
+            CLISS_DURATION="$secs" timeout --foreground "$((secs + 1))" "${CMD[@]}"
+        else
+            CLISS_DURATION="$secs" "${CMD[@]}"
+        fi
         status=$?
         clear
         [[ $status -eq 3 || $status -eq 124 ]] || break
@@ -118,7 +138,7 @@ menu() {
 }
 
 if [[ $# -gt 0 ]]; then
-    case "${1,,}" in
+    case "$(lower "$1")" in
         -h|--help|help)
             sed -n '2,9s/^# \{0,1\}//p' "$0"
             exit 0 ;;
@@ -149,7 +169,7 @@ fi
 while true; do
     menu
     read -rp "  Pick one: " choice || exit 0
-    case "${choice,,}" in
+    case "$(lower "$choice")" in
         q|quit|exit) clear; exit 0 ;;
         r|random) launch $((RANDOM % ${#NAMES[@]})) ;;
         s|shuffle) shuffle 60 ;;
