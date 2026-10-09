@@ -55,8 +55,10 @@ sudo ln -sf ~/.cliss/cliss /usr/local/bin/cliss
 cliss
 ```
 
+If `~/.local/bin` is already on your `PATH`, you can skip `sudo` and link it there instead: `ln -sf ~/.cliss/cliss ~/.local/bin/cliss`.
+
 - **Python:** macOS includes `python3` with the Xcode Command Line Tools. If `python3 --version` asks you to install them, accept, or run `xcode-select --install`.
-- **Colors:** Terminal.app only supports 256 colors, so CLISS switches to that automatically. iTerm2, Ghostty, WezTerm and kitty show full 24-bit color.
+- **Colors:** Terminal.app, iTerm2, Warp, Ghostty, WezTerm and kitty all show full 24-bit color. If a terminal doesn't advertise it, CLISS uses 256 colors (see [Colors](#colors) to force a mode).
 - **Updating:** run `git -C ~/.cliss pull`.
 - **SystemMonitor** reads Linux's `/proc`, so on macOS it only shows a message. Every other screensaver works.
 
