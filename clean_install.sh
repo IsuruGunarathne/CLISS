@@ -6,10 +6,7 @@ echo "🔨 Rebuilding CLISS package..."
 ./package.sh
 
 echo "📦 Installing CLISS package..."
-sudo dpkg -i CLISS_PACKAGE.deb
-
-echo "🔍 Checking and fixing any missing dependencies..."
-sudo apt-get install -f -y
+sudo apt install -y ./CLISS_PACKAGE.deb
 
 echo "✅ CLISS installed successfully!"
 echo "🎬 Run it by typing: cliss"

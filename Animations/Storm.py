@@ -90,7 +90,7 @@ class Storm:
         if self.bolt is not None and flicker > 0.3:
             for x, y, ch, power in self.bolt:
                 col = mix((140, 160, 255), (255, 255, 255), power)
-                s.put(x, y, ch, col, None, True)
+                s.put(x, y, ch, col, s.get(x, y)[2], True)
 
         # rain
         lean = "/" if self.wind < -0.2 else "\\" if self.wind > 0.2 else "|"
@@ -121,8 +121,9 @@ class Storm:
                 alive.append(sp)
                 x = int(sp[0])
                 ch = "." if sp[2] < 0.08 else "o" if sp[2] < 0.16 else "°"
+                y = h - 2 if sp[2] > 0.1 else h - 1
                 if 0 <= x < w:
-                    s.put(x, h - 2 if sp[2] > 0.1 else h - 1, ch, (150, 170, 210), s.get(x, h - 2)[2])
+                    s.put(x, y, ch, (150, 170, 210), s.get(x, y)[2])
         self.splashes = alive
 
 
