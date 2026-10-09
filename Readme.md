@@ -137,7 +137,7 @@ Pull requests are welcome, and new screensavers especially! Fork the repo, add y
 
 ## 📦 Releases
 
-Every pull request merged into `main` publishes a new release automatically: `v1`, `v1.1`, `v1.2`, and so on. Each release has a ready-to-install `cliss.deb`. See [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Every pull request merged into `main` publishes a new release automatically: `v1`, `v1.1`, `v1.2`, and so on. Each release has a ready-to-install `cliss.deb`. Changes that only touch documentation (Markdown files, `docs/`, the license) don't make a release. See [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 ---
 

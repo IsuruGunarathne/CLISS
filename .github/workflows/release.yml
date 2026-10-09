@@ -1,10 +1,19 @@
 name: Release
 
-# Every PR merged into main ships a new minor release: v1 -> v1.1 -> v1.2 ...
+# Every push to main (i.e. every merged PR) ships a new minor release:
+# v1 -> v1.1 -> v1.2 ... Pushes that only touch docs don't release.
+#
+# This runs on push rather than on pull_request: pull_request workflows from
+# forks get a read-only token, so they couldn't publish a release.
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitleaks.toml"
+      - ".github/workflows/gitleaks.yml"
 
 permissions:
   contents: write
@@ -16,12 +25,10 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Work out the next version
@@ -49,7 +56,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          SHA: ${{ github.sha }}
         run: |
           gh release create "$TAG" cliss.deb \
             --target "$SHA" \
