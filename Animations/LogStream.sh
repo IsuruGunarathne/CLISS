@@ -1,4 +1,5 @@
 #!/bin/bash
+# cliss: An endless stream of fake service logs
 clear
 while true; do
     TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")

@@ -1,4 +1,5 @@
 #!/bin/bash
+# cliss: A single sine wave drawn across the screen
 
 clear
 t=0
