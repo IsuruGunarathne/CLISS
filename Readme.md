@@ -68,6 +68,7 @@ cliss fire            # run one directly (names are case-insensitive)
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss list            # list what's installed
+cliss --version       # show the installed version
 cliss --help
 ```
 
