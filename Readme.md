@@ -2,6 +2,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/IsuruGunarathne/CLISS?sort=semver)](https://github.com/IsuruGunarathne/CLISS/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![gitleaks](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml)
 
 **Animated screensavers for your terminal.** Twelve full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks and an aquarium, all launched from a single `cliss` command.
 
