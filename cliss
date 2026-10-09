@@ -5,6 +5,7 @@
 #   cliss <name>          run one directly (case-insensitive, e.g. cliss fire)
 #   cliss random          run a random one
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
+#   cliss lock [...]      lock the screen when it ends (default: shuffle)
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
 
@@ -140,7 +141,7 @@ menu() {
 if [[ $# -gt 0 ]]; then
     case "$(lower "$1")" in
         -h|--help|help)
-            sed -n '2,9s/^# \{0,1\}//p' "$0"
+            sed -n '2,10s/^# \{0,1\}//p' "$0"
             exit 0 ;;
         -v|--version|version)
             echo "cliss $VERSION"
@@ -156,6 +157,23 @@ if [[ $# -gt 0 ]]; then
         shuffle)
             shuffle "$2"
             exit 0 ;;
+        lock)
+            shift
+            [[ $# -eq 0 ]] && set -- shuffle 60
+            case "$(lower "$1")" in
+                random|shuffle) ;;
+                *)
+                    if ! find_index "$1" >/dev/null; then
+                        echo "cliss: unknown screensaver '$1' (try: cliss list)" >&2
+                        exit 1
+                    fi ;;
+            esac
+            # the watchdog locks the screen once this process ends, or as
+            # soon as another app comes to the front
+            python3 "$BASE/lib/lockwatch.py" "$$" </dev/null >/dev/null 2>&1 &
+            disown
+            # exec keeps this PID, so the watchdog follows the screensaver
+            exec "$SELF" "$@" ;;
         *)
             if i=$(find_index "$1"); then
                 launch "$i"

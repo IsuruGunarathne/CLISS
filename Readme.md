@@ -91,6 +91,7 @@ cliss                 # pick from the menu
 cliss fire            # run one directly (names are case-insensitive)
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
+cliss lock matrix     # lock the screen when it ends (see Lock mode below)
 cliss list            # list what's installed
 cliss --version       # show the installed version
 cliss --help
@@ -106,6 +107,20 @@ CLISS uses 24-bit color when your terminal advertises it (`COLORTERM=truecolor`,
 CLISS_COLOR=256 cliss plasma
 CLISS_COLOR=truecolor cliss plasma
 ```
+
+### Lock mode
+
+`cliss lock` runs a screensaver and locks the screen as soon as it ends, however it ends: a keypress, Ctrl+C, closing the window, or quitting the terminal. It also locks, and stops the screensaver, if another app comes to the front (Cmd+Tab or Alt+Tab). Put the terminal in full screen first.
+
+```bash
+cliss lock            # shuffle (60s each), then lock
+cliss lock matrix     # any screensaver, or shuffle 30, random, ...
+```
+
+It isn't a real lock screen. Apps can't draw over the system lock screen, so while the screensaver runs the computer is unlocked. Use your system's lock shortcut when you need real security.
+
+- **macOS:** uses the system lock screen. Spotlight, Notification Center and Control Center don't count as switching apps, so they don't lock.
+- **Linux:** locks with `loginctl lock-session`, falling back to `xdg-screensaver`, `gnome-screensaver-command`, `dm-tool` or `xflock4`. If none of these works on your desktop, nothing locks. Locking on app switches needs X11 and `xprop`; on Wayland only the lock when it ends works.
 
 ---
 
@@ -169,6 +184,7 @@ Every pull request merged into `main` publishes a new release automatically: `v1
 Animations/
   Matrix.py, Fire.py, Plasma.py, ...   the screensavers
   lib/clissfx.py                       shared terminal rendering engine
+  lib/lockwatch.py                     the watchdog behind `cliss lock`
 docs/screenshots/                      images used in this README
 .github/workflows/release.yml          automatic releases on merge
 cliss                                  the launcher
