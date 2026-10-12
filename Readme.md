@@ -27,7 +27,10 @@
 
 ### 📊 SystemMonitor
 
-A live dashboard of your own machine: per-core CPU with a usage history, memory and swap, network traffic, disk space and I/O, temperatures, battery, GPU load (AMD, and NVIDIA via `nvidia-smi` when it's installed) and the busiest processes. It reads everything from `/proc` and `/sys`, so it doesn't need `sudo`. Linux only.
+A live dashboard of your own machine: per-core CPU with a usage history, memory and swap, network traffic, disk space and I/O, temperatures, battery, GPU load and the busiest processes. It never needs `sudo`. Run it with `cliss sm`.
+
+- **Linux:** reads everything from `/proc` and `/sys`. GPU load for AMD, and NVIDIA via `nvidia-smi` when it's installed.
+- **macOS:** reads the kernel's own counters directly, plus IOKit for disk I/O and the GPU. GPU load and battery show in the Sensors panel. Temperatures would need private Apple APIs, so they're left out.
 
 ![SystemMonitor](docs/screenshots/systemmonitor.png)
 
@@ -83,7 +86,7 @@ If `~/.local/bin` is already on your `PATH`, you can skip `sudo` and link it the
 
 - **Python:** CLISS uses the `python3` that comes with the Xcode Command Line Tools. If `python3 --version` asks you to install them, accept, or run `xcode-select --install`.
 - **Colors:** Terminal.app, iTerm2, Warp, Ghostty, WezTerm and kitty all show full 24-bit color. If a terminal doesn't advertise it, CLISS uses 256 colors (see [Colors](#colors) to force a mode).
-- **SystemMonitor** reads Linux's `/proc`, so on macOS it only shows a message. Every other screensaver works.
+- **SystemMonitor** works on macOS too, without temperatures (see [SystemMonitor](#-systemmonitor)).
 
 ### Any Linux distro (from source)
 
