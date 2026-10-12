@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # cliss: Live dashboard of your CPU, memory, network, disks, temperatures and top processes
+import ctypes
+import ctypes.util
 import glob
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -63,12 +66,7 @@ class Stats:
 
     def __init__(self):
         self.host = socket.gethostname()
-        self.kernel = platform.release()
-        model = ""
-        for line in (read("/proc/cpuinfo") or "").splitlines():
-            if line.startswith("model name"):
-                model = line.split(":", 1)[1].strip()
-                break
+        self.kernel, model = self.system_info()
         self.cpu_model = " ".join(model.replace("(R)", "").replace("(TM)", "").split()) or platform.machine()
         self.tick = os.sysconf("SC_CLK_TCK")
         self.page = os.sysconf("SC_PAGE_SIZE")
@@ -104,6 +102,14 @@ class Stats:
         self.ok = bool(self._cpu)
 
     # raw readers ---------------------------------------------------------
+
+    @staticmethod
+    def system_info():
+        """(kernel, CPU model) for the header and the CPU panel."""
+        for line in (read("/proc/cpuinfo") or "").splitlines():
+            if line.startswith("model name"):
+                return platform.release(), line.split(":", 1)[1].strip()
+        return platform.release(), ""
 
     @staticmethod
     def read_cpu():
@@ -142,8 +148,8 @@ class Stats:
                 wr += int(f[9]) * 512
         return rd, wr
 
-    @staticmethod
-    def read_procs():
+    def read_procs(self):
+        """{pid: (name, CPU seconds used so far, resident bytes)}"""
         procs = {}
         try:
             pids = [p for p in os.listdir("/proc") if p.isdigit()]
@@ -156,7 +162,8 @@ class Stats:
             r = s.rfind(")")
             f = s[r + 2:].split()
             if len(f) > 21:
-                procs[int(pid)] = (s[s.find("(") + 1:r], int(f[11]) + int(f[12]), int(f[21]))
+                procs[int(pid)] = (s[s.find("(") + 1:r], (int(f[11]) + int(f[12])) / self.tick,
+                                   int(f[21]) * self.page)
         return procs
 
     # sampling ------------------------------------------------------------
@@ -179,27 +186,11 @@ class Stats:
             self.cpu, self.cores = usage[0], usage[1:]
         self.cpu_hist.append(self.cpu)
 
-        freqs = []
-        for p in glob.glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq"):
-            v = read(p)
-            if v and v.strip().isdigit():
-                freqs.append(int(v))
-        self.freq = sum(freqs) / len(freqs) / 1e6 if freqs else None
-
-        mem = {}
-        for line in (read("/proc/meminfo") or "").splitlines():
-            k, _, v = line.partition(":")
-            parts = v.split()
-            if parts:
-                mem[k] = int(parts[0]) * 1024
-        self.mem = mem
+        self.freq = self.read_freq()
+        self.mem = mem = self.read_mem()
         total = mem.get("MemTotal", 0)
         self.mem_hist.append((total - mem.get("MemAvailable", 0)) / total if total else 0)
-
-        la = (read("/proc/loadavg") or "0 0 0 0/0").split()
-        self.load = tuple(float(x) for x in la[:3])
-        self.tasks = int(la[3].split("/")[1]) if "/" in la[3] else 0
-        self.uptime = float((read("/proc/uptime") or "0").split()[0])
+        self.load, self.tasks, self.uptime = self.read_load()
 
         rx, tx = self.read_net()
         self.rx, self.tx = max(0, rx - self._net[0]) / dt, max(0, tx - self._net[1]) / dt
@@ -215,15 +206,43 @@ class Stats:
         self.read_sensors()
         self.read_gpus()
 
+        self.top = sorted(self.read_top(dt), reverse=True)
+
+    def read_freq(self):
+        """Average clock speed in GHz, or None."""
+        freqs = []
+        for p in glob.glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq"):
+            v = read(p)
+            if v and v.strip().isdigit():
+                freqs.append(int(v))
+        return sum(freqs) / len(freqs) / 1e6 if freqs else None
+
+    def read_mem(self):
+        """Bytes, keyed like /proc/meminfo: MemTotal, MemAvailable, SwapTotal, SwapFree."""
+        mem = {}
+        for line in (read("/proc/meminfo") or "").splitlines():
+            k, _, v = line.partition(":")
+            parts = v.split()
+            if parts:
+                mem[k] = int(parts[0]) * 1024
+        return mem
+
+    def read_load(self):
+        """(load averages, task count, uptime in seconds)"""
+        la = (read("/proc/loadavg") or "0 0 0 0/0").split()
+        tasks = int(la[3].split("/")[1]) if "/" in la[3] else 0
+        return tuple(float(x) for x in la[:3]), tasks, float((read("/proc/uptime") or "0").split()[0])
+
+    def read_top(self, dt):
+        """[(CPU %, resident bytes, pid, name)] since the last sample."""
         procs = self.read_procs()
         top = []
-        for pid, (name, ticks, rss) in procs.items():
+        for pid, (name, secs, rss) in procs.items():
             prev = self._procs.get(pid)
-            used = (ticks - prev[1]) if prev and prev[0] == name else 0
-            top.append((used / self.tick / dt * 100, rss * self.page, pid, name))
-        top.sort(reverse=True)
-        self.top = top
+            used = (secs - prev[1]) if prev and prev[0] == name else 0
+            top.append((used / dt * 100, rss, pid, name))
         self._procs = procs
+        return top
 
     def read_disks(self):
         seen, out = set(), []
@@ -283,13 +302,317 @@ class Stats:
                 out = subprocess.run(
                     [self.nvidia, "--query-gpu=name,utilization.gpu,memory.used,memory.total",
                      "--format=csv,noheader,nounits"],
-                    capture_output=True, text=True, timeout=0.8).stdout
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, universal_newlines=True,
+                    timeout=0.8).stdout
                 for line in out.strip().splitlines():
                     name, util, used, total = [x.strip() for x in line.split(",")]
                     gpus.append((name.replace("NVIDIA ", "").replace("GeForce ", ""),
                                  int(util) / 100, int(used) << 20, int(total) << 20))
             except (OSError, ValueError, subprocess.SubprocessError):
                 self.nvidia = None
+        self.gpus = gpus
+
+
+# ---------------------------------------------------------------- macOS ----
+
+class _Timebase(ctypes.Structure):
+    _fields_ = [("numer", ctypes.c_uint32), ("denom", ctypes.c_uint32)]
+
+
+class _Timeval(ctypes.Structure):
+    _fields_ = [("sec", ctypes.c_long), ("usec", ctypes.c_int32)]
+
+
+class _SwapUsage(ctypes.Structure):       # struct xsw_usage
+    _fields_ = [("total", ctypes.c_uint64), ("avail", ctypes.c_uint64), ("used", ctypes.c_uint64),
+                ("pagesize", ctypes.c_uint32), ("encrypted", ctypes.c_int32)]
+
+
+_N, _U64 = ctypes.c_uint32, ctypes.c_uint64
+
+
+class _VMStats(ctypes.Structure):         # struct vm_statistics64
+    _fields_ = [("free", _N), ("active", _N), ("inactive", _N), ("wire", _N),
+                ("zero_fill", _U64), ("reactivations", _U64), ("pageins", _U64), ("pageouts", _U64),
+                ("faults", _U64), ("cow_faults", _U64), ("lookups", _U64), ("hits", _U64),
+                ("purges", _U64), ("purgeable", _N), ("speculative", _N),
+                ("decompressions", _U64), ("compressions", _U64), ("swapins", _U64), ("swapouts", _U64),
+                ("compressor", _N), ("throttled", _N), ("external", _N), ("internal", _N),
+                ("uncompressed", _U64)]
+
+
+class _RUsage(ctypes.Structure):          # struct rusage_info_v2
+    _fields_ = [("uuid", ctypes.c_uint8 * 16), ("user", _U64), ("system", _U64),
+                ("pkg_idle", _U64), ("interrupt", _U64), ("pageins", _U64), ("wired", _U64),
+                ("resident", _U64), ("phys", _U64), ("start", _U64), ("exit", _U64), ("more", _U64 * 20)]
+
+
+class _IfAddrs(ctypes.Structure):
+    pass
+
+
+_IfAddrs._fields_ = [("next", ctypes.POINTER(_IfAddrs)), ("name", ctypes.c_char_p), ("flags", ctypes.c_uint),
+                     ("addr", ctypes.c_void_p), ("netmask", ctypes.c_void_p), ("dstaddr", ctypes.c_void_p),
+                     ("data", ctypes.c_void_p)]
+
+MAC_FS = {"apfs", "hfs", "msdos", "exfat", "ntfs", "smbfs"}
+
+
+class _IOKit:
+    """Just enough IOKit to read numbers out of a dictionary property on every
+    device of a class: what `ioreg` shows, without starting a process."""
+
+    def __init__(self):
+        c = ctypes
+        io = self.io = c.CDLL(c.util.find_library("IOKit"))
+        cf = self.cf = c.CDLL(c.util.find_library("CoreFoundation"))
+        io.IOServiceMatching.restype = c.c_void_p
+        io.IOServiceMatching.argtypes = [c.c_char_p]
+        io.IOServiceGetMatchingServices.argtypes = [c.c_uint, c.c_void_p, c.POINTER(c.c_uint)]
+        io.IOIteratorNext.restype = c.c_uint
+        io.IOIteratorNext.argtypes = [c.c_uint]
+        io.IOObjectRelease.argtypes = [c.c_uint]
+        io.IORegistryEntryCreateCFProperty.restype = c.c_void_p
+        io.IORegistryEntryCreateCFProperty.argtypes = [c.c_uint, c.c_void_p, c.c_void_p, c.c_uint]
+        cf.CFStringCreateWithCString.restype = c.c_void_p
+        cf.CFStringCreateWithCString.argtypes = [c.c_void_p, c.c_char_p, c.c_uint32]
+        cf.CFDictionaryGetValue.restype = c.c_void_p
+        cf.CFDictionaryGetValue.argtypes = [c.c_void_p, c.c_void_p]
+        cf.CFNumberGetValue.restype = c.c_bool
+        cf.CFNumberGetValue.argtypes = [c.c_void_p, c.c_int, c.c_void_p]
+        cf.CFRelease.argtypes = [c.c_void_p]
+        self.keys = {}
+
+    def key(self, name):
+        if name not in self.keys:   # kept for the whole run, so never released
+            self.keys[name] = self.cf.CFStringCreateWithCString(None, name.encode(), 0x08000100)
+        return self.keys[name]
+
+    def numbers(self, cls, prop, names):
+        """[{name: value}] for each device of IOKit class cls."""
+        c, io, cf = ctypes, self.io, self.cf
+        out, it = [], c.c_uint()
+        if io.IOServiceGetMatchingServices(0, io.IOServiceMatching(cls.encode()), c.byref(it)):
+            return out
+        value = c.c_int64()
+        while True:
+            obj = io.IOIteratorNext(it.value)
+            if not obj:
+                break
+            d = io.IORegistryEntryCreateCFProperty(obj, self.key(prop), None, 0)
+            if d:
+                found = {}
+                for name in names:
+                    v = cf.CFDictionaryGetValue(d, self.key(name))
+                    if v and cf.CFNumberGetValue(v, 4, c.byref(value)):   # 4 = kCFNumberSInt64Type
+                        found[name] = value.value
+                out.append(found)
+                cf.CFRelease(d)
+            io.IOObjectRelease(obj)
+        io.IOObjectRelease(it.value)
+        return out
+
+
+def run_cmd(*cmd):
+    try:
+        return subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, universal_newlines=True, timeout=2).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+class MacStats(Stats):
+    """The same numbers on macOS, through ctypes: the kernel (Mach, sysctl,
+    libproc, getifaddrs) and IOKit for disk I/O and the GPU. ps, mount and
+    pmset fill in the rest every few seconds. Like on Linux, no root needed."""
+
+    SLOW = 10.0   # seconds between refreshes of the volume list and battery
+    PS = 5.0      # seconds between ps runs (see read_top)
+
+    def __init__(self):
+        c = ctypes
+        self.libc = c.CDLL(c.util.find_library("c"))
+        self.libproc = c.CDLL(c.util.find_library("proc"))
+        self.libc.mach_host_self.restype = c.c_uint
+        self.mhost = self.libc.mach_host_self()
+        self.mtask = c.c_uint.in_dll(self.libc, "mach_task_self_")
+        tb = _Timebase()
+        self.libc.mach_timebase_info(c.byref(tb))
+        self.ns = tb.numer / tb.denom if tb.denom else 1.0
+        self.libc.getifaddrs.argtypes = [c.POINTER(c.POINTER(_IfAddrs))]
+        self.libc.freeifaddrs.argtypes = [c.POINTER(_IfAddrs)]
+        self.iokit = _IOKit()
+        self._if_raw, self._if_total = {}, [0, 0]
+        self._slow_at = self._ps_at = 0.0
+        self._volumes, self._ps, self.npids = [], {}, 0
+        self.memsize = self.sysctl("hw.memsize", c.c_uint64) or 0
+        boot = self.sysctl("kern.boottime", _Timeval)
+        self.boot = boot.sec if boot else time.time()
+        super().__init__()
+        if self.host.endswith(".local"):
+            self.host = self.host[:-6]
+
+    def sysctl(self, name, ctype):
+        v = ctype()
+        size = ctypes.c_size_t(ctypes.sizeof(v))
+        if self.libc.sysctlbyname(name.encode(), ctypes.byref(v), ctypes.byref(size), None, ctypes.c_size_t(0)):
+            return None
+        return v.value if hasattr(v, "value") else v
+
+    def system_info(self):
+        size = ctypes.c_size_t(0)
+        name = b"machdep.cpu.brand_string"
+        self.libc.sysctlbyname(name, None, ctypes.byref(size), None, ctypes.c_size_t(0))
+        buf = ctypes.create_string_buffer(max(1, size.value))
+        self.libc.sysctlbyname(name, buf, ctypes.byref(size), None, ctypes.c_size_t(0))
+        return "macOS " + platform.mac_ver()[0], buf.value.decode("utf-8", "replace")
+
+    def read_cpu(self):
+        c = ctypes
+        count, n_info = c.c_uint(), c.c_uint()
+        info = c.POINTER(c.c_int32)()
+        if self.libc.host_processor_info(self.mhost, 2, c.byref(count), c.byref(info), c.byref(n_info)):
+            return []   # 2 = PROCESSOR_CPU_LOAD_INFO: user, system, idle, nice ticks per core
+        cores = []
+        for i in range(count.value):
+            t = [info[i * 4 + k] & 0xFFFFFFFF for k in range(4)]
+            cores.append((t[2], sum(t)))
+        self.libc.vm_deallocate(self.mtask, c.cast(info, c.c_void_p), c.c_size_t(n_info.value * 4))
+        total = (sum(i for i, _ in cores), sum(t for _, t in cores))
+        return [total] + cores if cores else []
+
+    def read_freq(self):
+        return None
+
+    def read_mem(self):
+        vm = _VMStats()
+        count = ctypes.c_uint(ctypes.sizeof(vm) // 4)
+        mem = {"MemTotal": self.memsize, "MemAvailable": self.memsize}
+        if self.libc.host_statistics64(self.mhost, 4, ctypes.byref(vm), ctypes.byref(count)) == 0:
+            # "Memory Used" the way Activity Monitor counts it: app + wired + compressed
+            used = (vm.internal - vm.purgeable + vm.wire + vm.compressor) * self.page
+            mem["MemAvailable"] = max(0, self.memsize - used)
+        swap = self.sysctl("vm.swapusage", _SwapUsage)
+        if swap:
+            mem["SwapTotal"], mem["SwapFree"] = swap.total, swap.avail
+        return mem
+
+    def read_load(self):
+        return os.getloadavg(), self.npids, time.time() - self.boot
+
+    def read_net(self):
+        """Bytes in and out over en* (Wi-Fi, Ethernet, Thunderbolt), skipping
+        loopback and VPN tunnels so nothing is counted twice. The kernel's
+        counters are 32-bit, so add up their deltas modulo 2^32."""
+        c = ctypes
+        head = c.POINTER(_IfAddrs)()
+        if self.libc.getifaddrs(c.byref(head)):
+            return tuple(self._if_total)
+        p = head
+        while p:
+            ifa = p.contents
+            # AF_LINK (18) entries carry the interface's struct if_data
+            if ifa.data and ifa.addr and c.cast(ifa.addr, c.POINTER(c.c_uint8))[1] == 18 \
+                    and ifa.name.startswith(b"en"):
+                d = c.cast(ifa.data, c.POINTER(c.c_uint32))
+                raw = (d[10], d[11])   # ifi_ibytes, ifi_obytes
+                prev = self._if_raw.get(ifa.name)
+                if prev:
+                    self._if_total[0] += (raw[0] - prev[0]) % (1 << 32)
+                    self._if_total[1] += (raw[1] - prev[1]) % (1 << 32)
+                self._if_raw[ifa.name] = raw
+            p = ifa.next
+        self.libc.freeifaddrs(head)
+        return tuple(self._if_total)
+
+    def read_io(self):
+        disks = self.iokit.numbers("IOBlockStorageDriver", "Statistics", ("Bytes (Read)", "Bytes (Write)"))
+        return (sum(d.get("Bytes (Read)", 0) for d in disks),
+                sum(d.get("Bytes (Write)", 0) for d in disks))
+
+    def read_procs(self):
+        """Processes we're allowed to inspect (our own): exact CPU time."""
+        c = ctypes
+        n = self.libproc.proc_listallpids(None, 0)
+        buf = (c.c_int * (max(n, 0) + 64))()
+        n = self.libproc.proc_listallpids(buf, c.sizeof(buf))
+        self.npids = max(0, n)
+        procs = {}
+        ru, name = _RUsage(), c.create_string_buffer(256)
+        for pid in buf[:self.npids]:
+            if pid <= 0 or self.libproc.proc_pid_rusage(pid, 2, c.byref(ru)):
+                continue
+            self.libproc.proc_name(pid, name, 256)
+            procs[pid] = (name.value.decode("utf-8", "replace") or "?",
+                          (ru.user + ru.system) * self.ns / 1e9, ru.resident)
+        return procs
+
+    def read_top(self, dt):
+        """Root's processes (WindowServer, kernel_task, ...) can only be seen
+        through ps, which is setuid root. It's slow and its CPU % is a recent
+        average, so run it every few seconds just for those."""
+        top = super().read_top(dt)
+        now = time.monotonic()
+        if now >= self._ps_at:
+            self._ps_at = now + self.PS
+            ps = {}
+            for line in run_cmd("ps", "-Axo", "pid=,pcpu=,rss=,comm=").splitlines():
+                f = line.split(None, 3)
+                if len(f) == 4:
+                    try:
+                        ps[int(f[0])] = (float(f[1]), int(f[2]) * 1024, os.path.basename(f[3]))
+                    except ValueError:
+                        pass
+            self._ps = ps
+        for pid, (cpu, rss, name) in self._ps.items():
+            if pid not in self._procs:
+                top.append((cpu, rss, pid, name))
+        return top
+
+    def read_disks(self):
+        now = time.monotonic()
+        if now >= self._slow_at:
+            vols = []
+            for line in run_cmd("mount").splitlines():
+                m = re.match(r"^(\S+) on (.+) \(([^)]*)\)$", line)
+                if not m:
+                    continue
+                opts = [o.strip() for o in m.group(3).split(",")]
+                if opts[0] in MAC_FS and "local" in opts and "nobrowse" not in opts:
+                    vols.append(m.group(2))
+            self._volumes = vols
+            self.read_battery()
+            self._slow_at = now + self.SLOW
+        out = []
+        for mount in self._volumes:
+            try:
+                st = os.statvfs(mount)
+            except OSError:
+                continue
+            total = st.f_blocks * st.f_frsize
+            if total:
+                # an APFS volume shares its container: used = size - available
+                out.append((mount, total - st.f_bavail * st.f_frsize, total))
+        return out
+
+    def read_battery(self):
+        m = re.search(r"(\d+)%;\s*([^;]+);", run_cmd("pmset", "-g", "batt"))
+        self.battery = (int(m.group(1)), m.group(2).strip()) if m else None
+
+    def read_sensors(self):
+        # temperatures need private APIs on Apple silicon; the battery is
+        # refreshed with the volume list
+        self.temps, self.cpu_temp = [], None
+
+    def read_gpus(self):
+        # Apple silicon GPUs share the system's memory, so show it against RAM
+        total = self.memsize if self.cpu_model.startswith("Apple") else 0
+        gpus = []
+        for d in self.iokit.numbers("IOAccelerator", "PerformanceStatistics",
+                                    ("Device Utilization %", "In use system memory")):
+            if "Device Utilization %" in d:
+                gpus.append(("GPU%s" % (len(gpus) or ""), d["Device Utilization %"] / 100,
+                             d.get("In use system memory", 0) if total else 0, total))
         self.gpus = gpus
 
 
@@ -300,7 +623,7 @@ def stats():
     """One sampler for the whole run, so history survives terminal resizes."""
     global _stats
     if _stats is None:
-        _stats = Stats()
+        _stats = MacStats() if sys.platform == "darwin" else Stats()
     return _stats
 
 
@@ -520,7 +843,7 @@ class SystemMonitor:
         s.clear()
         w, h = s.w, s.h
         if not st.ok:
-            msg = "SystemMonitor needs Linux (/proc is not available here)"
+            msg = "SystemMonitor works on Linux and macOS, not on this system"
             s.text(max(0, (w - len(msg)) // 2), h // 2, msg, TEXT)
             return
 
