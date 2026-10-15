@@ -1,6 +1,6 @@
 """lockwatch - the watchdog behind `cliss lock`.
 
-Usage: python3 lockwatch.py <pid> [--photo]
+Usage: python3 lockwatch.py <pid> [--sentry]
 
 Waits for process <pid> (the screensaver) to end, however it ends, then locks
 the screen. If another app or window comes to the front while it runs, it
@@ -11,8 +11,9 @@ Locking uses the system lock screen on macOS, and loginctl (or
 xdg-screensaver, dm-tool, ...) on Linux. The focus check needs macOS or Linux
 on X11: Wayland doesn't let apps see which window has focus.
 
-With --photo it also takes a webcam photo (see snap.py) when it locks, so you
-can see who touched the computer. A failed photo never stops the lock.
+With --sentry it records who touched the computer: a burst of webcam photos
+(see snap.py), starting about 2.5s before it locks and carrying on behind the
+lock screen. Without a working camera it just locks.
 
 CLISS_LOCK_DRYRUN=<file> appends to <file> instead of locking (for testing).
 """
@@ -29,10 +30,9 @@ import snap  # noqa: E402
 
 MAC = sys.platform == "darwin"
 DRY = os.environ.get("CLISS_LOCK_DRYRUN")
-PHOTO = "--photo" in sys.argv[2:]
-# Lock first and let the photo finish behind the lock screen, so locking
-# isn't held up by the camera starting.
-PHOTO_FIRST = False
+SENTRY = "--sentry" in sys.argv[2:]
+# photos before locking: about 0.5s for the camera to start, then 2s of photos
+LOCK_AFTER = 2.5
 
 
 def output(*cmd):
@@ -73,17 +73,15 @@ def lock(reason):
 
 
 def caught(reason):
-    """Lock the screen, with a photo when --photo is on. Returns lock()'s result."""
-    shot = snap.start(reason) if PHOTO else None
-    if PHOTO_FIRST:
-        photo = snap.finish(shot)
-        locked = lock(reason)
-    else:
-        locked = lock(reason)
-        photo = snap.finish(shot)
-    if DRY and photo:
+    """Lock the screen, recording a burst of photos with --sentry. Returns lock()'s result."""
+    shot = snap.start(reason) if SENTRY else None
+    if shot:
+        time.sleep(LOCK_AFTER)
+    locked = lock(reason)
+    photos = snap.finish(shot)
+    if DRY and photos:
         with open(DRY, "a") as f:
-            f.write("photo: %s\n" % photo)
+            f.write("photos: %d in %s\n" % (len(photos), os.path.dirname(photos[0])))
     return locked
 
 

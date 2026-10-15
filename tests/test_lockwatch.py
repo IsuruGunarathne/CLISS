@@ -7,38 +7,41 @@ import time
 import unittest
 
 LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib")
-WRITE_OK = "sh -c 'printf jpeg > \"$1\"' sh {out}"
+BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
 
 
-def run_watchdog(camera, photo=True):
-    """Run lockwatch on a short-lived process; return the dry-run log lines and the photo dir."""
+def run_watchdog(camera, sentry=True):
+    """Run lockwatch on a short-lived process; return its dry-run log lines, photo dir and run time."""
     tmp = tempfile.mkdtemp()
     log, photos = os.path.join(tmp, "log"), os.path.join(tmp, "photos")
     target = subprocess.Popen(["sleep", "1.5"])
     threading.Thread(target=target.wait).start()   # reap it, so it doesn't linger as a zombie
     env = dict(os.environ, CLISS_LOCK_DRYRUN=log, CLISS_PHOTO_DIR=photos, CLISS_CAMERA_CMD=camera)
     args = [sys.executable, os.path.join(LIB, "lockwatch.py"), str(target.pid)]
-    subprocess.run(args + (["--photo"] if photo else []), env=env, timeout=20)
+    start = time.time()
+    subprocess.run(args + (["--sentry"] if sentry else []), env=env, timeout=30)
     with open(log) as f:
-        return f.read().splitlines(), photos
+        return f.read().splitlines(), photos, time.time() - start
 
 
 class LockwatchTest(unittest.TestCase):
-    def test_photo_then_lock_on_exit(self):
-        lines, photos = run_watchdog(WRITE_OK)
-        self.assertIn("locked: exit", lines)
-        photo = [l for l in lines if l.startswith("photo: ")]
-        self.assertEqual(len(photo), 1)
-        self.assertTrue(os.path.isfile(photo[0][len("photo: "):]))
+    def test_burst_then_lock_on_exit(self):
+        lines, photos, took = run_watchdog(BURST)
+        self.assertEqual(lines[0], "locked: exit")
+        self.assertTrue(lines[1].startswith("photos: 9 in "), lines)
+        folder = lines[1].split(" in ", 1)[1]
+        self.assertEqual(len(os.listdir(folder)), 9)
+        self.assertGreater(took, 1.5 + 2.5)          # it waited before locking
 
-    def test_no_photo_without_flag(self):
-        lines, photos = run_watchdog(WRITE_OK, photo=False)
+    def test_no_photos_without_flag(self):
+        lines, photos, took = run_watchdog(BURST, sentry=False)
         self.assertEqual(lines, ["locked: exit"])
         self.assertFalse(os.path.exists(photos))
 
-    def test_lock_still_happens_when_photo_fails(self):
-        lines, photos = run_watchdog("false {out}")
+    def test_locks_straight_away_without_a_camera(self):
+        lines, photos, took = run_watchdog("/nonexistent/camera {dir}")
         self.assertEqual(lines, ["locked: exit"])
+        self.assertLess(took, 1.5 + 2.0)             # no 2.5s wait when there's no camera
 
 
 if __name__ == "__main__":

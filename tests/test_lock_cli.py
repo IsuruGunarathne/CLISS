@@ -7,7 +7,7 @@ import time
 import unittest
 
 CLISS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cliss")
-WRITE_OK = "sh -c 'printf jpeg > \"$1\"' sh {out}"
+BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
 
 
 def run(args, camera, key_after=2.0):
@@ -55,26 +55,27 @@ def wait_for(path, text, secs=12):
 
 
 class LockCliTest(unittest.TestCase):
-    def test_photo_and_lock(self):
-        status, out, log, photos = run(["lock", "--photo", "clock"], WRITE_OK)
+    def test_sentry_records_and_locks(self):
+        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST)
         self.assertEqual(status, 0, out[-500:])
-        self.assertTrue(wait_for(log, "photo: "), "no photo logged")
+        self.assertTrue(wait_for(log, "photos: 9 in "), "no photos logged")
         self.assertIn("locked: exit", read(log))
-        self.assertEqual(len(os.listdir(photos)), 1)
+        self.assertEqual(len(os.listdir(photos)), 1)                       # one folder...
+        self.assertEqual(len(os.listdir(os.path.join(photos, os.listdir(photos)[0]))), 9)  # ...of 9
 
     def test_check_failure_stops_before_screensaver(self):
-        status, out, log, photos = run(["lock", "--photo", "clock"], "false {out}")
+        status, out, log, photos = run(["lock", "--sentry", "clock"], "false {dir}")
         self.assertNotEqual(status, 0)
-        self.assertIn("cliss lock --photo:", out)
+        self.assertIn("cliss lock --sentry:", out)
         self.assertNotIn("\x1b[?1049h", out)          # the screensaver never started
         time.sleep(2)
         self.assertFalse(os.path.exists(log))          # and nothing locked
 
-    def test_lock_without_photo_unchanged(self):
-        status, out, log, photos = run(["lock", "clock"], WRITE_OK)
+    def test_lock_without_sentry_unchanged(self):
+        status, out, log, photos = run(["lock", "clock"], BURST)
         self.assertEqual(status, 0, out[-500:])
         self.assertTrue(wait_for(log, "locked: exit"))
-        self.assertNotIn("photo: ", read(log))
+        self.assertNotIn("photos: ", read(log))
         self.assertFalse(os.path.exists(photos))
 
 

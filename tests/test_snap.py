@@ -9,8 +9,9 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib"))
 import snap  # noqa: E402
 
-WRITE_OK = "sh -c 'printf jpeg > \"$1\"' sh {out}"
-WRITE_FAIL = "sh -c 'printf jpeg > \"$1\"; exit 1' sh {out}"
+BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
+FAIL = "sh -c 'exit 1' sh {dir}"
+PARTIAL = "sh -c 'printf jpeg > \"$1/01.jpg\"; exit 1' sh {dir}"
 
 
 class SnapTest(unittest.TestCase):
@@ -25,53 +26,64 @@ class SnapTest(unittest.TestCase):
     def camera(self, cmd):
         return mock.patch.dict(os.environ, {"CLISS_CAMERA_CMD": cmd})
 
-    def test_photo_path(self):
+    def test_burst_dir(self):
         now = time.mktime((2026, 10, 14, 15, 42, 10, 0, 0, -1))
-        self.assertEqual(snap.photo_path("focus", now),
-                         os.path.join(self.dir, "photos", "2026-10-14_15-42-10_focus.jpg"))
+        self.assertEqual(snap.burst_dir("focus", now),
+                         os.path.join(self.dir, "photos", "2026-10-14_15-42-10_focus"))
 
     def test_custom_camera_cmd(self):
-        with self.camera("cam --to {out} -q"):
-            self.assertEqual(snap.camera_cmd("/x.jpg"), ["cam", "--to", "/x.jpg", "-q"])
+        with self.camera("cam --to {dir} -n {count} -i {interval}"):
+            self.assertEqual(snap.camera_cmd("/x", 9, 0.5),
+                             ["cam", "--to", "/x", "-n", "9", "-i", "0.5"])
 
-    def test_capture_saves_private_photo(self):
-        with self.camera(WRITE_OK):
-            path = snap.finish(snap.start("exit"))
-        self.assertTrue(path.endswith("_exit.jpg"))
-        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+    def test_burst_saves_private_photos(self):
+        with self.camera(BURST):
+            photos = snap.finish(snap.start("exit", count=3))
+        self.assertEqual([os.path.basename(p) for p in photos], ["01.jpg", "02.jpg", "03.jpg"])
+        folder = os.path.dirname(photos[0])
+        self.assertTrue(folder.endswith("_exit"))
+        self.assertEqual(stat.S_IMODE(os.stat(photos[0]).st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(os.stat(folder).st_mode), 0o700)
         self.assertEqual(stat.S_IMODE(os.stat(snap.photo_dir()).st_mode), 0o700)
 
-    def test_failed_capture_leaves_no_file(self):
-        with self.camera(WRITE_FAIL):
-            self.assertIsNone(snap.finish(snap.start("exit")))
+    def test_failed_burst_leaves_nothing(self):
+        with self.camera(FAIL):
+            self.assertEqual(snap.finish(snap.start("exit")), [])
         self.assertEqual(os.listdir(snap.photo_dir()), [])
 
-    def test_hung_capture_times_out(self):
+    def test_partial_burst_keeps_what_it_got(self):
+        with self.camera(PARTIAL):
+            photos = snap.finish(snap.start("exit"))
+        self.assertEqual([os.path.basename(p) for p in photos], ["01.jpg"])
+
+    def test_hung_camera_times_out(self):
         with self.camera("sleep 30"):
             t = time.time()
-            self.assertIsNone(snap.finish(snap.start("exit"), timeout=0.5))
+            self.assertEqual(snap.finish(snap.start("exit"), timeout=0.5), [])
         self.assertLess(time.time() - t, 3)
+        self.assertEqual(os.listdir(snap.photo_dir()), [])
 
     def test_missing_camera_command(self):
-        with self.camera("/nonexistent/camera {out}"):
+        with self.camera("/nonexistent/camera {dir}"):
             self.assertIsNone(snap.start("exit"))
+        self.assertEqual(os.listdir(snap.photo_dir()), [])
 
     def test_unwritable_photo_dir(self):
         blocker = os.path.join(self.dir, "file")
         open(blocker, "w").close()
         with mock.patch.dict(os.environ, {"CLISS_PHOTO_DIR": os.path.join(blocker, "photos")}), \
-                self.camera(WRITE_OK):
+                self.camera(BURST):
             self.assertIsNone(snap.start("exit"))
 
     def test_finish_none(self):
-        self.assertIsNone(snap.finish(None))
+        self.assertEqual(snap.finish(None), [])
 
     def test_check_ok(self):
-        with self.camera(WRITE_OK):
+        with self.camera(BURST):
             self.assertIsNone(snap.check())
 
     def test_check_reports_failure(self):
-        with self.camera(WRITE_FAIL):
+        with self.camera(FAIL):
             self.assertIn("couldn't take a photo", snap.check())
 
     def test_build_helper_without_swiftc(self):
@@ -80,24 +92,25 @@ class SnapTest(unittest.TestCase):
             self.assertIn("xcode-select --install", snap.build_helper())
 
     @unittest.skipIf(sys.platform == "darwin", "Linux camera tools")
-    def test_linux_prefers_ffmpeg(self):
+    def test_linux_uses_ffmpeg(self):
         bin_dir = os.path.join(self.dir, "bin")
         os.mkdir(bin_dir)
-        for tool in ("ffmpeg", "fswebcam"):
-            path = os.path.join(bin_dir, tool)
-            with open(path, "w") as f:
-                f.write("#!/bin/sh\n")
-            os.chmod(path, 0o755)
+        path = os.path.join(bin_dir, "ffmpeg")
+        with open(path, "w") as f:
+            f.write("#!/bin/sh\n")
+        os.chmod(path, 0o755)
         with mock.patch.dict(os.environ, {"PATH": bin_dir}):
-            cmd = snap.camera_cmd("/x.jpg")
-        self.assertEqual((cmd[0], cmd[-1]), ("ffmpeg", "/x.jpg"))
+            cmd = snap.camera_cmd("/x", 9, 0.5)
+        self.assertEqual((cmd[0], cmd[-1]), ("ffmpeg", "/x/%02d.jpg"))
         self.assertIn("/dev/video0", cmd)
+        self.assertIn("fps=2", cmd)
+        self.assertEqual(cmd[cmd.index("-frames:v") + 1], "9")
 
     @unittest.skipIf(sys.platform == "darwin", "Linux camera tools")
-    def test_linux_without_tools(self):
+    def test_linux_without_ffmpeg(self):
         with mock.patch.dict(os.environ, {"PATH": self.dir}):
-            self.assertIsNone(snap.camera_cmd("/x.jpg"))
-            self.assertIn("install ffmpeg or fswebcam", snap.check())
+            self.assertIsNone(snap.camera_cmd("/x"))
+            self.assertIn("install ffmpeg", snap.check())
 
 
 if __name__ == "__main__":
