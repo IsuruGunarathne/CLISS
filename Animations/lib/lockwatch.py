@@ -1,6 +1,6 @@
 """lockwatch - the watchdog behind `cliss lock`.
 
-Usage: python3 lockwatch.py <pid>
+Usage: python3 lockwatch.py <pid> [--sentry]
 
 Waits for process <pid> (the screensaver) to end, however it ends, then locks
 the screen. If another app or window comes to the front while it runs, it
@@ -10,6 +10,10 @@ background before it runs the screensaver.
 Locking uses the system lock screen on macOS, and loginctl (or
 xdg-screensaver, dm-tool, ...) on Linux. The focus check needs macOS or Linux
 on X11: Wayland doesn't let apps see which window has focus.
+
+With --sentry it records who touched the computer: a burst of webcam photos
+(see snap.py), starting about 2.5s before it locks and carrying on behind the
+lock screen. Without a working camera it just locks.
 
 CLISS_LOCK_DRYRUN=<file> appends to <file> instead of locking (for testing).
 """
@@ -21,8 +25,14 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import snap  # noqa: E402
+
 MAC = sys.platform == "darwin"
 DRY = os.environ.get("CLISS_LOCK_DRYRUN")
+SENTRY = "--sentry" in sys.argv[2:]
+# photos before locking: about 0.5s for the camera to start, then 2s of photos
+LOCK_AFTER = 2.5
 
 
 def output(*cmd):
@@ -62,6 +72,22 @@ def lock(reason):
     return False
 
 
+def caught(reason):
+    """Lock the screen, recording a burst of photos with --sentry. Returns lock()'s result."""
+    shot = snap.start(reason) if SENTRY else None
+    if shot:
+        # wait while the camera records, but lock at once if it gives up
+        end = time.time() + LOCK_AFTER
+        while time.time() < end and shot[0].poll() is None:
+            time.sleep(0.1)
+    locked = lock(reason)
+    photos = snap.finish(shot)
+    if DRY and photos:
+        with open(DRY, "a") as f:
+            f.write("photos: %d in %s\n" % (len(photos), os.path.dirname(photos[0])))
+    return locked
+
+
 def alive(pid):
     try:
         os.kill(pid, 0)
@@ -84,7 +110,7 @@ def main():
     while alive(pid):
         now = front()
         if start and now and now != start:
-            if lock("focus"):
+            if caught("focus"):
                 # stop the screensaver; its python child first, since bash
                 # would otherwise exit and leave it running
                 subprocess.call(["pkill", "-TERM", "-P", str(pid)])
@@ -94,7 +120,7 @@ def main():
                     pass
             return
         time.sleep(0.25)
-    lock("exit")
+    caught("exit")
 
 
 if __name__ == "__main__":

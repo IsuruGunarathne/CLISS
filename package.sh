@@ -32,7 +32,7 @@ done
 
 echo "🧰 Copying the shared rendering engine"
 mkdir -p CLISS_PACKAGE/usr/share/cliss/lib
-cp Animations/lib/*.py CLISS_PACKAGE/usr/share/cliss/lib/
+cp Animations/lib/*.py Animations/lib/*.swift CLISS_PACKAGE/usr/share/cliss/lib/
 
 echo "v$VERSION" > CLISS_PACKAGE/usr/share/cliss/VERSION
 

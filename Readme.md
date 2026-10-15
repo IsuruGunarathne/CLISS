@@ -3,6 +3,7 @@
 [![Latest release](https://img.shields.io/github/v/release/IsuruGunarathne/CLISS?sort=semver)](https://github.com/IsuruGunarathne/CLISS/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![gitleaks](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/IsuruGunarathne/CLISS/actions/workflows/gitleaks.yml)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/IsuruGunarathne/CLISS?utm_source=oss&utm_medium=github&utm_campaign=IsuruGunarathne%2FCLISS&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 **Animated screensavers for your terminal.** Thirteen full-color animations, including matrix rain, a Doom-style fire, a synthwave sunset, fireworks, an aquarium and a live system monitor, all launched from a single `cliss` command.
 
@@ -119,6 +120,7 @@ cliss sm              # short names work too: initials (SystemMonitor) or a uniq
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss lock matrix     # lock the screen when it ends (see Lock mode below)
+cliss lock --sentry sm # ...and record whoever ends it with the webcam
 cliss list            # list what's installed
 cliss --version       # show the installed version
 cliss --help
@@ -148,6 +150,21 @@ It isn't a real lock screen. Apps can't draw over the system lock screen, so whi
 
 - **macOS:** uses the system lock screen. Spotlight, Notification Center and Control Center don't count as switching apps, so they don't lock.
 - **Linux:** locks with `loginctl lock-session`, falling back to `xdg-screensaver`, `gnome-screensaver-command`, `dm-tool` or `xflock4`. If none of these works on your desktop, nothing locks. Locking on app switches needs X11 and `xprop`; on Wayland only the lock when it ends works.
+
+#### Sentry mode
+
+`cliss lock --sentry` records whoever tries to use your computer. The moment someone ends the screensaver or switches apps, it takes a webcam photo every half second, locks the screen after about 2.5 seconds, and keeps taking photos for 2 more seconds behind the lock screen:
+
+```bash
+cliss lock --sentry       # shuffle
+cliss lock --sentry sm    # any screensaver
+```
+
+Each time gets its own folder, like `~/Pictures/cliss/2026-10-15_12-13-47_focus/` (`focus` for an app switch, `exit` for anything that ends the screensaver), with photos `01.jpg`, `02.jpg`, ..., readable only by you. They never leave your computer. Getting back in yourself records you too.
+
+- **macOS:** the first time, it builds a small camera helper (about a minute, needs the Command Line Tools: `xcode-select --install`) and macOS asks to let your terminal app use the camera. The camera light turns on while it records. Your Mac can't use the camera without it.
+- **Linux:** needs `ffmpeg` (`sudo apt install ffmpeg`) and a webcam at `/dev/video0` (pick another with `CLISS_CAMERA=/dev/video1`).
+- No photos with the lid closed, or when another app is using the camera. It still locks, straight away.
 
 ---
 
@@ -215,6 +232,8 @@ Animations/
   Matrix.py, Fire.py, Plasma.py, ...   the screensavers
   lib/clissfx.py                       shared terminal rendering engine
   lib/lockwatch.py                     the watchdog behind `cliss lock`
+  lib/snap.py, lib/camsnap.swift       the webcam photos for `cliss lock --sentry`
+tests/                               unit tests: python3 -m unittest discover -s tests
 docs/screenshots/                      images used in this README
 .github/workflows/release.yml          automatic releases on merge
 cliss                                  the launcher
