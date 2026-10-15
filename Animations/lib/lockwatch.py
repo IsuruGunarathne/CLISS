@@ -76,7 +76,10 @@ def caught(reason):
     """Lock the screen, recording a burst of photos with --sentry. Returns lock()'s result."""
     shot = snap.start(reason) if SENTRY else None
     if shot:
-        time.sleep(LOCK_AFTER)
+        # wait while the camera records, but lock at once if it gives up
+        end = time.time() + LOCK_AFTER
+        while time.time() < end and shot[0].poll() is None:
+            time.sleep(0.1)
     locked = lock(reason)
     photos = snap.finish(shot)
     if DRY and photos:

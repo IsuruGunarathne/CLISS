@@ -8,6 +8,7 @@ import unittest
 
 LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib")
 BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
+SLOW_BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done; sleep 3' sh {dir} {count}"
 
 
 def run_watchdog(camera, sentry=True):
@@ -26,7 +27,7 @@ def run_watchdog(camera, sentry=True):
 
 class LockwatchTest(unittest.TestCase):
     def test_burst_then_lock_on_exit(self):
-        lines, photos, took = run_watchdog(BURST)
+        lines, photos, took = run_watchdog(SLOW_BURST)    # still recording at lock time, like a real camera
         self.assertEqual(lines[0], "locked: exit")
         self.assertTrue(lines[1].startswith("photos: 9 in "), lines)
         folder = lines[1].split(" in ", 1)[1]
@@ -42,6 +43,11 @@ class LockwatchTest(unittest.TestCase):
         lines, photos, took = run_watchdog("/nonexistent/camera {dir}")
         self.assertEqual(lines, ["locked: exit"])
         self.assertLess(took, 1.5 + 2.0)             # no 2.5s wait when there's no camera
+
+    def test_locks_straight_away_when_the_camera_gives_up(self):
+        lines, photos, took = run_watchdog("sh -c 'exit 1'")
+        self.assertEqual(lines, ["locked: exit"])
+        self.assertLess(took, 1.5 + 2.0)             # didn't sit out the 2.5s
 
 
 if __name__ == "__main__":

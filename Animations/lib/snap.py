@@ -29,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.join(HERE, "camsnap.swift")
 COUNT = 9         # photos in a burst...
 INTERVAL = 0.5    # ...one every half second
+BUILD_TIMEOUT = 300  # seconds for swiftc; a normal build takes under a minute
 
 
 def photo_dir():
@@ -57,10 +58,19 @@ def build_helper():
     os.makedirs(os.path.dirname(path), exist_ok=True)
     print("Building the camera helper (first time only, about a minute)...", file=sys.stderr)
     tmp = path + ".tmp"
-    r = subprocess.run(["swiftc", "-O", "-swift-version", "5", SOURCE, "-o", tmp],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, universal_newlines=True)
-    if r.returncode != 0:
-        return "couldn't build the camera helper:\n" + r.stderr.strip()
+    try:
+        r = subprocess.run(["swiftc", "-O", "-swift-version", "5", SOURCE, "-o", tmp],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                           universal_newlines=True, timeout=BUILD_TIMEOUT)
+        error = r.stderr.strip() if r.returncode != 0 else None
+    except subprocess.TimeoutExpired:
+        error = "swiftc took over %d seconds" % BUILD_TIMEOUT
+    if error is not None:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return "couldn't build the camera helper:\n" + error
     os.replace(tmp, path)
     return None
 

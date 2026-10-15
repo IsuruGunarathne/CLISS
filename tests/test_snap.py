@@ -1,5 +1,6 @@
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -90,6 +91,19 @@ class SnapTest(unittest.TestCase):
         with mock.patch.object(snap, "helper_path", return_value=os.path.join(self.dir, "none")), \
                 mock.patch.object(snap.shutil, "which", return_value=None):
             self.assertIn("xcode-select --install", snap.build_helper())
+
+    def test_build_helper_timeout_cleans_up(self):
+        path = os.path.join(self.dir, "helper")
+
+        def stall(args, **kwargs):
+            with open(args[args.index("-o") + 1], "w") as f:
+                f.write("partial")
+            raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+        with mock.patch.object(snap, "helper_path", return_value=path), \
+                mock.patch.object(snap.shutil, "which", return_value="/usr/bin/swiftc"), \
+                mock.patch.object(snap.subprocess, "run", side_effect=stall):
+            self.assertIn("took over", snap.build_helper())
+        self.assertEqual(os.listdir(self.dir), [])
 
     @unittest.skipIf(sys.platform == "darwin", "Linux camera tools")
     def test_linux_uses_ffmpeg(self):
