@@ -6,6 +6,7 @@
 #   cliss random          run a random one
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss lock [...]      lock the screen when it ends (default: shuffle)
+#   cliss lock --photo [...]  same, and take a webcam photo when it locks
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
 
@@ -197,6 +198,11 @@ if [[ $# -gt 0 ]]; then
             exit 0 ;;
         lock)
             shift
+            photo=
+            if [[ "$1" == --photo ]]; then
+                photo=--photo
+                shift
+            fi
             [[ $# -eq 0 ]] && set -- shuffle 60
             case "$(lower "$1")" in
                 random|shuffle) ;;
@@ -206,9 +212,13 @@ if [[ $# -gt 0 ]]; then
                         exit 1
                     fi ;;
             esac
+            # build the camera helper and get camera access now, while you're here
+            if [[ -n "$photo" ]] && ! python3 "$BASE/lib/snap.py" --check; then
+                exit 1
+            fi
             # the watchdog locks the screen once this process ends, or as
             # soon as another app comes to the front
-            python3 "$BASE/lib/lockwatch.py" "$$" </dev/null >/dev/null 2>&1 &
+            python3 "$BASE/lib/lockwatch.py" "$$" $photo </dev/null >/dev/null 2>&1 &
             disown
             # exec keeps this PID, so the watchdog follows the screensaver
             exec "$SELF" "$@" ;;

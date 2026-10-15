@@ -119,6 +119,7 @@ cliss sm              # short names work too: initials (SystemMonitor) or a uniq
 cliss random          # surprise me
 cliss shuffle 30      # a new random screensaver every 30 seconds (default 60)
 cliss lock matrix     # lock the screen when it ends (see Lock mode below)
+cliss lock --photo sm # ...and take a webcam photo of whoever ends it
 cliss list            # list what's installed
 cliss --version       # show the installed version
 cliss --help
@@ -148,6 +149,21 @@ It isn't a real lock screen. Apps can't draw over the system lock screen, so whi
 
 - **macOS:** uses the system lock screen. Spotlight, Notification Center and Control Center don't count as switching apps, so they don't lock.
 - **Linux:** locks with `loginctl lock-session`, falling back to `xdg-screensaver`, `gnome-screensaver-command`, `dm-tool` or `xflock4`. If none of these works on your desktop, nothing locks. Locking on app switches needs X11 and `xprop`; on Wayland only the lock when it ends works.
+
+#### Photo of whoever touched it
+
+`cliss lock --photo` also takes a webcam photo the moment it locks, so you can see who tried to use your computer:
+
+```bash
+cliss lock --photo        # shuffle
+cliss lock --photo sm     # any screensaver
+```
+
+Photos are saved in `~/Pictures/cliss/` (named like `2026-10-14_15-42-10_focus.jpg`), readable only by you. They never leave your computer. Pressing a key yourself to get back in also takes a photo, of you.
+
+- **macOS:** the first time, it builds a small camera helper (about a minute, needs the Command Line Tools: `xcode-select --install`) and macOS asks to let your terminal app use the camera. The camera light turns on when it takes a photo. Your Mac can't take one without it.
+- **Linux:** needs `ffmpeg` or `fswebcam` (`sudo apt install ffmpeg`) and a webcam at `/dev/video0` (pick another with `CLISS_CAMERA=/dev/video1`).
+- No photo with the lid closed, or when another app is using the camera. It still locks.
 
 ---
 
@@ -215,6 +231,8 @@ Animations/
   Matrix.py, Fire.py, Plasma.py, ...   the screensavers
   lib/clissfx.py                       shared terminal rendering engine
   lib/lockwatch.py                     the watchdog behind `cliss lock`
+  lib/snap.py, lib/camsnap.swift       the webcam photo for `cliss lock --photo`
+tests/                               unit tests: python3 -m unittest discover -s tests
 docs/screenshots/                      images used in this README
 .github/workflows/release.yml          automatic releases on merge
 cliss                                  the launcher

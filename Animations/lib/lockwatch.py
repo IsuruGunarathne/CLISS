@@ -1,6 +1,6 @@
 """lockwatch - the watchdog behind `cliss lock`.
 
-Usage: python3 lockwatch.py <pid>
+Usage: python3 lockwatch.py <pid> [--photo]
 
 Waits for process <pid> (the screensaver) to end, however it ends, then locks
 the screen. If another app or window comes to the front while it runs, it
@@ -10,6 +10,9 @@ background before it runs the screensaver.
 Locking uses the system lock screen on macOS, and loginctl (or
 xdg-screensaver, dm-tool, ...) on Linux. The focus check needs macOS or Linux
 on X11: Wayland doesn't let apps see which window has focus.
+
+With --photo it also takes a webcam photo (see snap.py) when it locks, so you
+can see who touched the computer. A failed photo never stops the lock.
 
 CLISS_LOCK_DRYRUN=<file> appends to <file> instead of locking (for testing).
 """
@@ -21,8 +24,15 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import snap  # noqa: E402
+
 MAC = sys.platform == "darwin"
 DRY = os.environ.get("CLISS_LOCK_DRYRUN")
+PHOTO = "--photo" in sys.argv[2:]
+# Lock first and let the photo finish behind the lock screen, so locking
+# isn't held up by the camera starting.
+PHOTO_FIRST = False
 
 
 def output(*cmd):
@@ -62,6 +72,21 @@ def lock(reason):
     return False
 
 
+def caught(reason):
+    """Lock the screen, with a photo when --photo is on. Returns lock()'s result."""
+    shot = snap.start(reason) if PHOTO else None
+    if PHOTO_FIRST:
+        photo = snap.finish(shot)
+        locked = lock(reason)
+    else:
+        locked = lock(reason)
+        photo = snap.finish(shot)
+    if DRY and photo:
+        with open(DRY, "a") as f:
+            f.write("photo: %s\n" % photo)
+    return locked
+
+
 def alive(pid):
     try:
         os.kill(pid, 0)
@@ -84,7 +109,7 @@ def main():
     while alive(pid):
         now = front()
         if start and now and now != start:
-            if lock("focus"):
+            if caught("focus"):
                 # stop the screensaver; its python child first, since bash
                 # would otherwise exit and leave it running
                 subprocess.call(["pkill", "-TERM", "-P", str(pid)])
@@ -94,7 +119,7 @@ def main():
                     pass
             return
         time.sleep(0.25)
-    lock("exit")
+    caught("exit")
 
 
 if __name__ == "__main__":
