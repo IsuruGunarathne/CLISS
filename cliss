@@ -7,7 +7,7 @@
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss lock [...]      lock the screen when it ends (default: shuffle)
 #   cliss lock --sentry [...] same, and record who did it with the webcam
-#                         (asks for an optional PIN that lets you back in without photos)
+#                         (asks for a PIN that lets you back in without photos)
 #   cliss --set-default-pin  save a PIN for when you don't type one
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
@@ -262,25 +262,25 @@ if [[ $# -gt 0 ]]; then
                 exit 1
             fi
             # a PIN typed as you come back throws that burst away (the screen
-            # still locks). If you don't give one in time, your default is used,
-            # so walking away from the prompt still starts the screensaver.
+            # still locks). If you don't give one in time, your default is used
+            # (0000 if you haven't set one), so walking away from the prompt
+            # still starts the screensaver.
             pin=
             if [[ -n "$sentry" ]]; then
-                default=
+                default= which="your default PIN"
                 [[ -r "$PIN_FILE" ]] && read -r default < "$PIN_FILE"
+                if [[ -z "$default" ]]; then
+                    default=$(printf 0000 | python3 "$BASE/lib/lockpin.py") || exit 1
+                    which="the default PIN 0000"
+                fi
                 if [[ -t 0 ]]; then
                     wait="${CLISS_PIN_WAIT:-10}"
-                    if [[ -n "$default" ]]; then
-                        prompt="Disarm PIN (Enter or wait ${wait}s for your default): "
-                    else
-                        prompt="Disarm PIN, so you can get back in without photos (Enter or wait ${wait}s for none): "
-                    fi
-                    pin=$(ask_pin "$prompt" "$wait")
+                    pin=$(ask_pin "Disarm PIN, so you can get back in without photos (Enter or wait ${wait}s for ${which#the }): " "$wait")
                     [[ $? -eq 1 ]] && exit 1
                 fi
-                if [[ -z "$pin" && -n "$default" ]]; then
+                if [[ -z "$pin" ]]; then
                     pin=$default
-                    echo "Using your default PIN." >&2
+                    echo "Using $which." >&2
                 fi
             fi
             # the watchdog locks the screen once this process ends, or as

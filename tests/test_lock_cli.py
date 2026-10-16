@@ -12,7 +12,7 @@ BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done'
 # still recording when the PIN comes in, like a real camera
 SLOW_BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done; sleep 3' sh {dir} {count}"
 PROMPT = "Disarm PIN"
-NO_PIN = [(PROMPT, 0.3, b"\n"), (None, 2.0, b"x")]
+SKIP_PIN = [(PROMPT, 0.3, b"\n"), (None, 2.0, b"x")]
 
 
 def typed(text):
@@ -74,7 +74,7 @@ def wait_for(path, text, secs=12):
 
 class LockCliTest(unittest.TestCase):
     def test_sentry_records_and_locks(self):
-        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST, NO_PIN)
+        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST, SKIP_PIN)
         self.assertEqual(status, 0, out[-500:])
         self.assertTrue(wait_for(log, "photos: 9 in "), "no photos logged")
         self.assertIn("locked: exit", read(log))
@@ -179,9 +179,15 @@ class DefaultPinTest(unittest.TestCase):
         self.assertTrue(wait_for(log, "photos: 9 in "), "the default disarmed it")
         self.assertNotIn("disarmed", read(log))
 
-    def test_no_default_and_no_answer_still_locks(self):
-        status, out, log, photos = self.lock([(PROMPT, 2.0, b"x")])
+    def test_no_default_and_no_answer_uses_0000(self):
+        status, out, log, photos = self.lock([("Using the default PIN 0000", 2.0, b"0000\n")])
         self.assertEqual(status, 0, out[-500:])
+        self.assertTrue(wait_for(log, "disarmed"), read(log) if os.path.exists(log) else "no log")
+        self.assertEqual(os.listdir(photos), [])
+
+    def test_0000_doesnt_disarm_a_saved_default(self):
+        self.set_default(b"1234")
+        status, out, log, photos = self.lock([("Using your default PIN", 2.0, b"0000\n")])
         self.assertTrue(wait_for(log, "photos: 9 in "))
         self.assertNotIn("disarmed", read(log))
 
