@@ -7,7 +7,8 @@
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss lock [...]      lock the screen when it ends (default: shuffle)
 #   cliss lock --sentry [...] same, and record who did it with the webcam
-#                         (asks for an optional PIN that lets you back in without photos)
+#                         (asks for a PIN that lets you back in without photos)
+#   cliss --set-default-pin  save a PIN for when you don't type one
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
 
@@ -123,6 +124,38 @@ name_error() {
     fi
 }
 
+# where `cliss --set-default-pin` keeps the PIN's hash (never the PIN)
+PIN_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cliss/pin"
+
+# Ask for a disarm PIN twice, without showing it, and print its hash (see
+# lib/lockpin.py). Prints nothing if Enter was pressed on its own.
+# $1: the prompt; $2: seconds to wait for each answer (0: no limit).
+# Returns 1 (with a message) for a bad PIN, 2 if nothing came in time.
+ask_pin() {
+    local pin again limit=()
+    [[ "$2" -gt 0 ]] && limit=(-t "$2")
+    if ! read -rs "${limit[@]}" -p "$1" pin; then
+        echo >&2
+        return 2
+    fi
+    echo >&2
+    [[ -z "$pin" ]] && return 0
+    if [[ ${#pin} -lt 4 || "$pin" == *[[:space:]]* ]]; then
+        echo "cliss: the PIN needs at least 4 characters and no spaces" >&2
+        return 1
+    fi
+    if ! read -rs "${limit[@]}" -p "Again: " again; then
+        echo >&2
+        return 2
+    fi
+    echo >&2
+    if [[ "$pin" != "$again" ]]; then
+        echo "cliss: the PINs didn't match" >&2
+        return 1
+    fi
+    printf %s "$pin" | python3 "$BASE/lib/lockpin.py"
+}
+
 shuffle() {
     local secs="${1:-60}"
     if ! [[ "$secs" =~ ^[0-9]+$ ]] || [[ "$secs" -eq 0 ]]; then
@@ -181,10 +214,21 @@ menu() {
 if [[ $# -gt 0 ]]; then
     case "$(lower "$1")" in
         -h|--help|help)
-            sed -n '2,10s/^# \{0,1\}//p' "$0"
+            sed -n '2,/^$/s/^# \{0,1\}//p' "$0"
             exit 0 ;;
         -v|--version|version)
             echo "cliss $VERSION"
+            exit 0 ;;
+        --set-default-pin)
+            pin=$(ask_pin "Default disarm PIN for cliss lock --sentry (Enter to remove it): " 0) || exit 1
+            if [[ -z "$pin" ]]; then
+                rm -f "$PIN_FILE"
+                echo "No default PIN now."
+            else
+                mkdir -p "$(dirname "$PIN_FILE")" || exit 1
+                (umask 077 && printf '%s\n' "$pin" > "$PIN_FILE") || exit 1
+                echo "Saved. cliss lock --sentry uses it when you don't type a PIN."
+            fi
             exit 0 ;;
         list|ls)
             for i in "${!NAMES[@]}"; do
@@ -217,24 +261,27 @@ if [[ $# -gt 0 ]]; then
             if [[ -n "$sentry" ]] && ! python3 "$BASE/lib/snap.py" --check; then
                 exit 1
             fi
-            # a PIN typed as you come back throws that burst away (the screen still locks)
+            # a PIN typed as you come back throws that burst away (the screen
+            # still locks). If you don't give one in time, your default is used
+            # (0000 if you haven't set one), so walking away from the prompt
+            # still starts the screensaver.
             pin=
-            if [[ -n "$sentry" && -t 0 ]]; then
-                read -rsp "Disarm PIN, so you can get back in without photos (Enter for none): " pin
-                echo
-                if [[ -n "$pin" ]]; then
-                    if [[ ${#pin} -lt 4 || "$pin" == *[[:space:]]* ]]; then
-                        echo "cliss lock --sentry: the PIN needs at least 4 characters and no spaces" >&2
-                        exit 1
-                    fi
-                    read -rsp "Again: " again
-                    echo
-                    if [[ "$pin" != "$again" ]]; then
-                        echo "cliss lock --sentry: the PINs didn't match" >&2
-                        exit 1
-                    fi
-                    pin=$(printf %s "$pin" | python3 "$BASE/lib/lockpin.py") || exit 1
-                    again=
+            if [[ -n "$sentry" ]]; then
+                default= which="your default PIN" hint=
+                [[ -r "$PIN_FILE" ]] && read -r default < "$PIN_FILE"
+                if [[ -z "$default" ]]; then
+                    default=$(printf 0000 | python3 "$BASE/lib/lockpin.py") || exit 1
+                    which="the default PIN 0000"
+                    hint=" (set your own with cliss --set-default-pin)"
+                fi
+                if [[ -t 0 ]]; then
+                    wait="${CLISS_PIN_WAIT:-10}"
+                    pin=$(ask_pin "Disarm PIN, so you can get back in without photos (Enter or wait ${wait}s for ${which#the }): " "$wait")
+                    [[ $? -eq 1 ]] && exit 1
+                fi
+                if [[ -z "$pin" ]]; then
+                    pin=$default
+                    echo "Using $which$hint." >&2
                 fi
             fi
             # the watchdog locks the screen once this process ends, or as
