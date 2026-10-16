@@ -24,12 +24,14 @@ CLISS_LOCK_DRYRUN=<file> appends to <file> instead of locking (for testing).
 
 import ctypes
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lockpin  # noqa: E402
 import snap  # noqa: E402
 
 MAC = sys.platform == "darwin"
@@ -90,18 +92,28 @@ def lock(reason):
 
 def caught(reason):
     """Lock the screen, recording a burst of photos with --sentry. Returns lock()'s result."""
+    since = time.time()
+    # only a burst started by a key can be disarmed, never an app switch
+    pin = keyed
     shot = snap.start(reason) if SENTRY else None
     if shot:
         # wait while the camera records, but lock at once if it gives up
-        end = time.time() + LOCK_AFTER
-        while time.time() < end and shot[0].poll() is None and not disarmed:
+        end = since + LOCK_AFTER
+        while time.time() < end and shot[0].poll() is None and not (pin and disarmed):
             time.sleep(0.1)
     locked = lock(reason)
-    photos = snap.finish(shot, stop=lambda: disarmed)
+    photos = snap.finish(shot, stop=lambda: pin and disarmed)
+    if pin and photos:
+        # the camera finished early: the PIN can still be on its way
+        while not disarmed and time.time() < since + lockpin.WINDOW:
+            time.sleep(0.1)
+        if disarmed:
+            shutil.rmtree(os.path.dirname(photos[0]), ignore_errors=True)
+            photos = []
     if DRY and photos:
         with open(DRY, "a") as f:
             f.write("photos: %d in %s\n" % (len(photos), os.path.dirname(photos[0])))
-    if DRY and shot and disarmed:
+    if DRY and shot and pin and disarmed:
         with open(DRY, "a") as f:
             f.write("disarmed\n")
     return locked
@@ -119,7 +131,8 @@ def alive(pid):
 
 def main():
     pid = int(sys.argv[1])
-    # first, since a signal's default action would kill us
+    # first, since a signal's default action would kill us (the launcher
+    # starts us with both ignored, to cover the moment before this)
     signal.signal(signal.SIGUSR1, on_key)
     signal.signal(signal.SIGUSR2, on_disarm)
     # our own session, so closing the terminal doesn't take us down with it

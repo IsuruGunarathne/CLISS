@@ -238,8 +238,12 @@ if [[ $# -gt 0 ]]; then
                 fi
             fi
             # the watchdog locks the screen once this process ends, or as
-            # soon as another app comes to the front
+            # soon as another app comes to the front. It starts with the
+            # screensaver's signals ignored, so an early one can't kill it
+            # before its handlers are in.
+            trap '' USR1 USR2
             python3 "$BASE/lib/lockwatch.py" "$$" $sentry </dev/null >/dev/null 2>&1 &
+            trap - USR1 USR2
             if [[ -n "$pin" ]]; then
                 # tells the screensaver whom to signal, and what to check the PIN against
                 export CLISS_LOCK_WATCH=$! CLISS_LOCK_PIN="$pin"

@@ -6,6 +6,10 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib"))
+import lockwatch  # noqa: E402
 
 LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib")
 BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
@@ -84,6 +88,66 @@ class LockwatchTest(unittest.TestCase):
         self.assertEqual(lines, ["locked: exit", "disarmed"])
         self.assertEqual(os.listdir(photos), [])
         self.assertLess(took, 2.5)                   # locked as soon as it was disarmed
+
+    def test_survives_a_signal_before_its_handlers(self):
+        # the launcher starts it with these ignored; a key that early mustn't kill it
+        tmp = tempfile.mkdtemp()
+        log = os.path.join(tmp, "log")
+        target = subprocess.Popen(["sleep", "1.5"])
+        threading.Thread(target=target.wait).start()
+
+        def ignore():
+            signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+            signal.signal(signal.SIGUSR2, signal.SIG_IGN)
+        watch = subprocess.Popen([sys.executable, os.path.join(LIB, "lockwatch.py"), str(target.pid)],
+                                 env=dict(os.environ, CLISS_LOCK_DRYRUN=log), preexec_fn=ignore)
+        watch.send_signal(signal.SIGUSR1)            # straight away, before python is even up
+        self.assertEqual(watch.wait(30), 0)
+        with open(log) as f:
+            self.assertEqual(f.read(), "locked: exit\n")
+
+
+class CaughtTest(unittest.TestCase):
+    """caught() itself, with the PIN's signals simulated by setting the flags."""
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.log, self.photos = os.path.join(tmp, "log"), os.path.join(tmp, "photos")
+        self.patches = [mock.patch.object(lockwatch, "DRY", self.log),
+                        mock.patch.object(lockwatch, "SENTRY", True),
+                        mock.patch.object(lockwatch, "keyed", False),
+                        mock.patch.object(lockwatch, "disarmed", False),
+                        mock.patch.dict(os.environ, CLISS_PHOTO_DIR=self.photos)]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+
+    def caught(self, reason, camera, disarm_after):
+        lockwatch.keyed = reason == "exit"
+        timer = threading.Timer(disarm_after, setattr, (lockwatch, "disarmed", True))
+        timer.start()
+        with mock.patch.dict(os.environ, CLISS_CAMERA_CMD=camera):
+            lockwatch.caught(reason)
+        timer.cancel()
+        with open(self.log) as f:
+            return f.read().splitlines()
+
+    def test_pin_cant_disarm_an_app_switch(self):
+        lines = self.caught("focus", SLOW_BURST, 0.5)
+        self.assertEqual(lines[0], "locked: focus")
+        self.assertTrue(lines[1].startswith("photos: 9 in "), lines)
+
+    def test_late_pin_still_disarms_a_finished_burst(self):
+        lines = self.caught("exit", BURST, 1.5)      # camera done at once, PIN in 1.5s later
+        self.assertEqual(lines, ["locked: exit", "disarmed"])
+        self.assertEqual(os.listdir(self.photos), [])
+
+    def test_no_pin_keeps_the_photos(self):
+        lines = self.caught("exit", BURST, 60)
+        self.assertTrue(lines[1].startswith("photos: 9 in "), lines)
 
 
 if __name__ == "__main__":
