@@ -181,6 +181,7 @@ class DefaultPinTest(unittest.TestCase):
 
     def test_no_default_and_no_answer_uses_0000(self):
         status, out, log, photos = self.lock([("Using the default PIN 0000", 2.0, b"0000\n")])
+        self.assertIn("set your own with cliss --set-default-pin", out)
         self.assertEqual(status, 0, out[-500:])
         self.assertTrue(wait_for(log, "disarmed"), read(log) if os.path.exists(log) else "no log")
         self.assertEqual(os.listdir(photos), [])
@@ -188,6 +189,7 @@ class DefaultPinTest(unittest.TestCase):
     def test_0000_doesnt_disarm_a_saved_default(self):
         self.set_default(b"1234")
         status, out, log, photos = self.lock([("Using your default PIN", 2.0, b"0000\n")])
+        self.assertNotIn("set your own", out)
         self.assertTrue(wait_for(log, "photos: 9 in "))
         self.assertNotIn("disarmed", read(log))
 

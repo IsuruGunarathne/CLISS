@@ -267,11 +267,12 @@ if [[ $# -gt 0 ]]; then
             # still starts the screensaver.
             pin=
             if [[ -n "$sentry" ]]; then
-                default= which="your default PIN"
+                default= which="your default PIN" hint=
                 [[ -r "$PIN_FILE" ]] && read -r default < "$PIN_FILE"
                 if [[ -z "$default" ]]; then
                     default=$(printf 0000 | python3 "$BASE/lib/lockpin.py") || exit 1
                     which="the default PIN 0000"
+                    hint=" (set your own with cliss --set-default-pin)"
                 fi
                 if [[ -t 0 ]]; then
                     wait="${CLISS_PIN_WAIT:-10}"
@@ -280,7 +281,7 @@ if [[ $# -gt 0 ]]; then
                 fi
                 if [[ -z "$pin" ]]; then
                     pin=$default
-                    echo "Using $which." >&2
+                    echo "Using $which$hint." >&2
                 fi
             fi
             # the watchdog locks the screen once this process ends, or as
