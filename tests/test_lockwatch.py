@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -9,6 +10,30 @@ import unittest
 LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Animations", "lib")
 BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
 SLOW_BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done; sleep 3' sh {dir} {count}"
+
+
+def run_keyed(camera, disarm):
+    """Signal lockwatch the way the screensaver does with a PIN; return its log, photo dir and run time."""
+    tmp = tempfile.mkdtemp()
+    log, photos = os.path.join(tmp, "log"), os.path.join(tmp, "photos")
+    target = subprocess.Popen(["sleep", "20"])
+    env = dict(os.environ, CLISS_LOCK_DRYRUN=log, CLISS_PHOTO_DIR=photos, CLISS_CAMERA_CMD=camera)
+    watch = subprocess.Popen([sys.executable, os.path.join(LIB, "lockwatch.py"), str(target.pid), "--sentry"],
+                             env=env)
+    try:
+        time.sleep(1.5)
+        start = time.time()
+        watch.send_signal(signal.SIGUSR1)                # a key ended the screensaver
+        if disarm:
+            time.sleep(0.5)
+            watch.send_signal(signal.SIGUSR2)            # ...and the right PIN followed
+        watch.wait(30)
+        took = time.time() - start
+    finally:
+        target.kill()
+        target.wait()
+    with open(log) as f:
+        return f.read().splitlines(), photos, took
 
 
 def run_watchdog(camera, sentry=True):
@@ -48,6 +73,17 @@ class LockwatchTest(unittest.TestCase):
         lines, photos, took = run_watchdog("sh -c 'exit 1'")
         self.assertEqual(lines, ["locked: exit"])
         self.assertLess(took, 1.5 + 2.0)             # didn't sit out the 2.5s
+
+    def test_key_signal_starts_the_burst(self):
+        lines, photos, took = run_keyed(SLOW_BURST, disarm=False)
+        self.assertEqual(lines[0], "locked: exit")
+        self.assertTrue(lines[1].startswith("photos: 9 in "), lines)
+
+    def test_disarm_throws_the_burst_away(self):
+        lines, photos, took = run_keyed(SLOW_BURST, disarm=True)
+        self.assertEqual(lines, ["locked: exit", "disarmed"])
+        self.assertEqual(os.listdir(photos), [])
+        self.assertLess(took, 2.5)                   # locked as soon as it was disarmed
 
 
 if __name__ == "__main__":

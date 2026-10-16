@@ -119,16 +119,24 @@ def start(reason, count=COUNT, interval=INTERVAL):
     return None
 
 
-def finish(shot, timeout=COUNT * INTERVAL + 6):
-    """Wait for a burst from start(). Returns the photos it saved (maybe none)."""
+def finish(shot, timeout=COUNT * INTERVAL + 6, stop=None):
+    """Wait for a burst from start(). Returns the photos it saved (maybe none).
+
+    If stop() turns true while waiting (or by the end), the burst is thrown
+    away instead and nothing is kept.
+    """
     if not shot:
         return []
     proc, folder = shot
-    try:
-        proc.wait(timeout)
-    except subprocess.TimeoutExpired:
+    end = time.time() + timeout
+    while proc.poll() is None and time.time() < end and not (stop and stop()):
+        time.sleep(0.1)
+    if proc.poll() is None:
         proc.kill()
         proc.wait()
+    if stop and stop():
+        shutil.rmtree(folder, ignore_errors=True)
+        return []
     # keep whatever was saved, even if the camera failed partway
     photos = photos_in(folder)
     for photo in photos:

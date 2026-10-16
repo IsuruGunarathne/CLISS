@@ -8,10 +8,20 @@ import unittest
 
 CLISS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cliss")
 BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done' sh {dir} {count}"
+# still recording when the PIN comes in, like a real camera
+SLOW_BURST = "sh -c 'for i in $(seq 1 \"$2\"); do printf jpeg > \"$1/0$i.jpg\"; done; sleep 3' sh {dir} {count}"
+PROMPT = "Disarm PIN"
+NO_PIN = [(PROMPT, 0.3, b"\n"), (None, 2.0, b"x")]
 
 
-def run(args, camera, key_after=2.0):
-    """Run cliss in a pty, press a key, return (exit status, output, dry-run log path, photo dir)."""
+def typed(text):
+    """Keys for `text`, one at a time, like a person typing."""
+    return [(None, 0.15, bytes([c])) for c in text.encode()]
+
+
+def run(args, camera, keys=((None, 2.0, b"x"),)):
+    """Run cliss in a pty and type `keys`, a list of (wait for this output or None,
+    then this many seconds, bytes). Returns (exit status, output, dry-run log path, photo dir)."""
     tmp = tempfile.mkdtemp()
     log, photos = os.path.join(tmp, "log"), os.path.join(tmp, "photos")
     env = dict(os.environ, TERM="xterm-256color", CLISS_LOCK_DRYRUN=log,
@@ -19,14 +29,19 @@ def run(args, camera, key_after=2.0):
     pid, fd = pty.fork()
     if pid == 0:
         os.execvpe(CLISS, [CLISS] + args, env)
-    out, start, sent = b"", time.time(), False
-    while time.time() - start < 15:
-        if not sent and time.time() - start > key_after:
-            sent = True
-            try:
-                os.write(fd, b"x")
-            except OSError:      # cliss already exited (the --check failure test)
-                pass
+    out, start, mark, keys = b"", time.time(), time.time(), list(keys)
+    while time.time() - start < 20:
+        if keys:
+            text, delay, data = keys[0]
+            if text and text.encode() not in out:
+                mark = time.time()
+            elif time.time() - mark > delay:
+                keys.pop(0)
+                mark = time.time()
+                try:
+                    os.write(fd, data)
+                except OSError:  # cliss already exited (the --check failure test)
+                    pass
         r, _, _ = select.select([fd], [], [], 0.05)
         if r:
             try:
@@ -56,7 +71,7 @@ def wait_for(path, text, secs=12):
 
 class LockCliTest(unittest.TestCase):
     def test_sentry_records_and_locks(self):
-        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST)
+        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST, NO_PIN)
         self.assertEqual(status, 0, out[-500:])
         self.assertTrue(wait_for(log, "photos: 9 in "), "no photos logged")
         self.assertIn("locked: exit", read(log))
@@ -71,9 +86,40 @@ class LockCliTest(unittest.TestCase):
         time.sleep(2)
         self.assertFalse(os.path.exists(log))          # and nothing locked
 
+    def test_pin_gets_you_back_without_photos(self):
+        keys = [(PROMPT, 0.3, b"1234\n"), ("Again", 0.3, b"1234\n")] + typed("1234\n")
+        keys[2] = (None, 2.0, keys[2][2])                  # the screensaver runs a while first
+        status, out, log, photos = run(["lock", "--sentry", "clock"], SLOW_BURST, keys)
+        self.assertEqual(status, 0, out[-500:])
+        self.assertTrue(wait_for(log, "disarmed"), read(log) if os.path.exists(log) else "no log")
+        self.assertIn("locked: exit", read(log))
+        self.assertNotIn("photos: ", read(log))
+        self.assertEqual(os.listdir(photos), [])
+        self.assertNotIn("1234", out)                       # never echoed
+
+    def test_wrong_pin_keeps_the_photos(self):
+        keys = [(PROMPT, 0.3, b"1234\n"), ("Again", 0.3, b"1234\n"), (None, 2.0, b"9999\n")]
+        status, out, log, photos = run(["lock", "--sentry", "clock"], SLOW_BURST, keys)
+        self.assertEqual(status, 0, out[-500:])
+        self.assertTrue(wait_for(log, "photos: 9 in "), "no photos logged")
+        self.assertNotIn("disarmed", read(log))
+
+    def test_mismatched_pins_stop_before_screensaver(self):
+        keys = [(PROMPT, 0.3, b"1234\n"), ("Again", 0.3, b"4321\n")]
+        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST, keys)
+        self.assertNotEqual(status, 0)
+        self.assertIn("the PINs didn't match", out)
+        self.assertNotIn("\x1b[?1049h", out)
+
+    def test_short_pin_refused(self):
+        status, out, log, photos = run(["lock", "--sentry", "clock"], BURST, [(PROMPT, 0.3, b"12\n")])
+        self.assertNotEqual(status, 0)
+        self.assertIn("at least 4 characters", out)
+
     def test_lock_without_sentry_unchanged(self):
         status, out, log, photos = run(["lock", "clock"], BURST)
         self.assertEqual(status, 0, out[-500:])
+        self.assertNotIn(PROMPT, out)
         self.assertTrue(wait_for(log, "locked: exit"))
         self.assertNotIn("photos: ", read(log))
         self.assertFalse(os.path.exists(photos))

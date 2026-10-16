@@ -15,6 +15,10 @@ With --sentry it records who touched the computer: a burst of webcam photos
 (see snap.py), starting about 2.5s before it locks and carrying on behind the
 lock screen. Without a working camera it just locks.
 
+With a disarm PIN, the screensaver sends SIGUSR1 on the first key (start
+recording now; it then reads the PIN) and SIGUSR2 once the right PIN is in
+(throw the photos away and lock now). It still locks either way.
+
 CLISS_LOCK_DRYRUN=<file> appends to <file> instead of locking (for testing).
 """
 
@@ -33,6 +37,18 @@ DRY = os.environ.get("CLISS_LOCK_DRYRUN")
 SENTRY = "--sentry" in sys.argv[2:]
 # photos before locking: about 0.5s for the camera to start, then 2s of photos
 LOCK_AFTER = 2.5
+
+keyed = disarmed = False
+
+
+def on_key(*_):
+    global keyed
+    keyed = True
+
+
+def on_disarm(*_):
+    global disarmed
+    disarmed = True
 
 
 def output(*cmd):
@@ -78,13 +94,16 @@ def caught(reason):
     if shot:
         # wait while the camera records, but lock at once if it gives up
         end = time.time() + LOCK_AFTER
-        while time.time() < end and shot[0].poll() is None:
+        while time.time() < end and shot[0].poll() is None and not disarmed:
             time.sleep(0.1)
     locked = lock(reason)
-    photos = snap.finish(shot)
+    photos = snap.finish(shot, stop=lambda: disarmed)
     if DRY and photos:
         with open(DRY, "a") as f:
             f.write("photos: %d in %s\n" % (len(photos), os.path.dirname(photos[0])))
+    if DRY and shot and disarmed:
+        with open(DRY, "a") as f:
+            f.write("disarmed\n")
     return locked
 
 
@@ -100,6 +119,9 @@ def alive(pid):
 
 def main():
     pid = int(sys.argv[1])
+    # first, since a signal's default action would kill us
+    signal.signal(signal.SIGUSR1, on_key)
+    signal.signal(signal.SIGUSR2, on_disarm)
     # our own session, so closing the terminal doesn't take us down with it
     os.setsid()
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -107,7 +129,7 @@ def main():
     # let focus settle first, in case we were started mid app switch
     time.sleep(1)
     start = front()
-    while alive(pid):
+    while alive(pid) and not keyed:
         now = front()
         if start and now and now != start:
             if caught("focus"):

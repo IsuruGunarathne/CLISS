@@ -17,6 +17,8 @@ import termios
 import time
 import tty
 
+import lockpin
+
 _mode = os.environ.get("CLISS_COLOR", "").lower()
 if _mode not in ("truecolor", "256"):
     _ct = os.environ.get("COLORTERM", "").lower()
@@ -209,6 +211,40 @@ def _write(s):
         data = data[n:]
 
 
+def _signal(pid, sig):
+    try:
+        os.kill(pid, sig)
+    except OSError:
+        pass
+
+
+def _sentry_pin():
+    """(watchdog pid, PIN hash) when `cliss lock --sentry` was given a disarm PIN."""
+    try:
+        return int(os.environ["CLISS_LOCK_WATCH"]), os.environ["CLISS_LOCK_PIN"]
+    except (KeyError, ValueError):
+        return None
+
+
+def _read_pin(fd, typed, watch, value):
+    """The key that ended the screensaver starts the watchdog's photos. If the
+    rest of the disarm PIN and Enter follow in time, it throws them away."""
+    _signal(watch, signal.SIGUSR1)
+    end = time.monotonic() + lockpin.WINDOW
+    while b"\n" not in typed and b"\r" not in typed:
+        left = end - time.monotonic()
+        if left <= 0:
+            return
+        ready, _, _ = select.select([fd], [], [], left)
+        if ready:
+            data = os.read(fd, 64)
+            if not data:
+                return
+            typed += data
+    if lockpin.matches(lockpin.entry(typed), value):
+        _signal(watch, signal.SIGUSR2)
+
+
 def run(anim_cls, fps=30):
     """Run an animation until a key is pressed.
 
@@ -226,6 +262,7 @@ def run(anim_cls, fps=30):
         duration = 0.0
 
     fd = sys.stdin.fileno() if sys.stdin.isatty() else None
+    pin = _sentry_pin()
     saved = termios.tcgetattr(fd) if fd is not None else None
     resized = [True]
     signal.signal(signal.SIGWINCH, lambda *_: resized.__setitem__(0, True))
@@ -271,6 +308,8 @@ def run(anim_cls, fps=30):
                 if key == b" ":
                     paused = not paused
                 else:
+                    if pin:
+                        _read_pin(fd, key, *pin)
                     break
     except KeyboardInterrupt:
         pass

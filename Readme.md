@@ -160,7 +160,9 @@ cliss lock --sentry       # shuffle
 cliss lock --sentry sm    # any screensaver
 ```
 
-Each time gets its own folder, like `~/Pictures/cliss/2026-10-15_12-13-47_focus/` (`focus` for an app switch, `exit` for anything that ends the screensaver), with photos `01.jpg`, `02.jpg`, ..., readable only by you. They never leave your computer. Getting back in yourself records you too.
+Each time gets its own folder, like `~/Pictures/cliss/2026-10-15_12-13-47_focus/` (`focus` for an app switch, `exit` for anything that ends the screensaver), with photos `01.jpg`, `02.jpg`, ..., readable only by you. They never leave your computer.
+
+**Getting back in yourself:** when it starts, it asks for an optional disarm PIN (at least 4 characters, typed twice, never shown or saved). When you come back, type the PIN and press Enter as the first thing you do. Its first key ends the screensaver as usual, and you have about 2.5 seconds to finish. The photos from that moment are deleted straight away and the screen locks as usual, so you unlock with Touch ID or your password. The PIN only skips the photos, never the lock. Without a PIN, or with a wrong one, getting back in yourself records you too, and so does switching apps.
 
 - **macOS:** the first time, it builds a small camera helper (about a minute, needs the Command Line Tools: `xcode-select --install`) and macOS asks to let your terminal app use the camera. The camera light turns on while it records. Your Mac can't use the camera without it.
 - **Linux:** needs `ffmpeg` (`sudo apt install ffmpeg`) and a webcam at `/dev/video0` (pick another with `CLISS_CAMERA=/dev/video1`).
@@ -233,6 +235,7 @@ Animations/
   lib/clissfx.py                       shared terminal rendering engine
   lib/lockwatch.py                     the watchdog behind `cliss lock`
   lib/snap.py, lib/camsnap.swift       the webcam photos for `cliss lock --sentry`
+  lib/lockpin.py                       its disarm PIN
 tests/                               unit tests: python3 -m unittest discover -s tests
 docs/screenshots/                      images used in this README
 .github/workflows/release.yml          automatic releases on merge

@@ -7,6 +7,7 @@
 #   cliss shuffle [secs]  cycle through random ones (default 60s each)
 #   cliss lock [...]      lock the screen when it ends (default: shuffle)
 #   cliss lock --sentry [...] same, and record who did it with the webcam
+#                         (asks for an optional PIN that lets you back in without photos)
 #   cliss list            list what is installed
 #   cliss --version       show the installed version
 
@@ -216,9 +217,33 @@ if [[ $# -gt 0 ]]; then
             if [[ -n "$sentry" ]] && ! python3 "$BASE/lib/snap.py" --check; then
                 exit 1
             fi
+            # a PIN typed as you come back throws that burst away (the screen still locks)
+            pin=
+            if [[ -n "$sentry" && -t 0 ]]; then
+                read -rsp "Disarm PIN, so you can get back in without photos (Enter for none): " pin
+                echo
+                if [[ -n "$pin" ]]; then
+                    if [[ ${#pin} -lt 4 || "$pin" == *[[:space:]]* ]]; then
+                        echo "cliss lock --sentry: the PIN needs at least 4 characters and no spaces" >&2
+                        exit 1
+                    fi
+                    read -rsp "Again: " again
+                    echo
+                    if [[ "$pin" != "$again" ]]; then
+                        echo "cliss lock --sentry: the PINs didn't match" >&2
+                        exit 1
+                    fi
+                    pin=$(printf %s "$pin" | python3 "$BASE/lib/lockpin.py") || exit 1
+                    again=
+                fi
+            fi
             # the watchdog locks the screen once this process ends, or as
             # soon as another app comes to the front
             python3 "$BASE/lib/lockwatch.py" "$$" $sentry </dev/null >/dev/null 2>&1 &
+            if [[ -n "$pin" ]]; then
+                # tells the screensaver whom to signal, and what to check the PIN against
+                export CLISS_LOCK_WATCH=$! CLISS_LOCK_PIN="$pin"
+            fi
             disown
             # exec keeps this PID, so the watchdog follows the screensaver
             exec "$SELF" "$@" ;;
