@@ -164,6 +164,8 @@ Each time gets its own folder, like `~/Pictures/cliss/2026-10-15_12-13-47_focus/
 
 **Getting back in yourself:** when it starts, it asks for an optional disarm PIN (at least 4 characters, typed twice, never shown or saved). When you come back, type the PIN and press Enter as the first thing you do. Its first key ends the screensaver as usual, and you have about 2.5 seconds to finish. The photos from that moment are deleted straight away and the screen locks as usual, so you unlock with Touch ID or your password. The PIN only skips the photos, never the lock. Without a PIN, or with a wrong one, getting back in yourself records you too, and so does switching apps.
 
+To skip typing a PIN every time, save a default one with `cliss --set-default-pin` (run it again and press Enter to remove it). Only its hash is kept, in `~/.config/cliss/pin`. Then `cliss lock --sentry` uses the default when you press Enter at the PIN prompt, or after 10 seconds if you walk away without answering. A PIN you do type replaces it for that session. Without a default, walking away still starts the screensaver after 10 seconds, without a PIN.
+
 - **macOS:** the first time, it builds a small camera helper (about a minute, needs the Command Line Tools: `xcode-select --install`) and macOS asks to let your terminal app use the camera. The camera light turns on while it records. Your Mac can't use the camera without it.
 - **Linux:** needs `ffmpeg` (`sudo apt install ffmpeg`) and a webcam at `/dev/video0` (pick another with `CLISS_CAMERA=/dev/video1`).
 - No photos with the lid closed, or when another app is using the camera. It still locks, straight away.
